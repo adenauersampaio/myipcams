@@ -45,6 +45,8 @@ class ConnectionTester(QThread):
 class CameraEditDialog(QDialog):
     """Diálogo modal para adicionar ou editar parâmetros de uma câmera."""
 
+    reboot_result_ready = pyqtSignal(bool, str)
+
     def __init__(self, camera: Optional[Camera] = None, parent=None):
         super().__init__(parent)
         self.camera = camera or Camera()
@@ -53,6 +55,7 @@ class CameraEditDialog(QDialog):
         self.setWindowIcon(get_app_icon())
         self.setMinimumWidth(450)
 
+        self.reboot_result_ready.connect(self._on_reboot_result)
         self._setup_ui()
         self._load_values()
 
@@ -148,7 +151,7 @@ class CameraEditDialog(QDialog):
 
         layout.addWidget(group_features)
 
-        # Botão de teste de conexão
+        # Botão de teste de conexão e diagnóstico
         self.test_status_label = QLabel("")
         self.test_status_label.setStyleSheet("color: #94A3B8; font-size: 11px;")
         
@@ -158,6 +161,14 @@ class CameraEditDialog(QDialog):
         
         test_box = QHBoxLayout()
         test_box.addWidget(btn_test)
+
+        if not self.is_new:
+            btn_reboot = QPushButton("⚡ Reiniciar Câmera")
+            btn_reboot.setObjectName("secondaryBtn")
+            btn_reboot.setToolTip("Envia comando de reinicialização remota para a câmera")
+            btn_reboot.clicked.connect(self._reboot_camera)
+            test_box.addWidget(btn_reboot)
+
         test_box.addWidget(self.test_status_label, stretch=1)
         layout.addLayout(test_box)
 
@@ -278,6 +289,85 @@ class CameraEditDialog(QDialog):
         else:
             self.test_status_label.setText("❌ " + message)
             self.test_status_label.setStyleSheet("color: #F87171; font-size: 11px;")
+
+    def _reboot_camera(self):
+        ip = self.ip_edit.text().strip()
+        if not ip:
+            QMessageBox.warning(self, "Aviso", "Preencha primeiro o endereço IP.")
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Reiniciar Câmera",
+            f"Deseja realmente enviar comando de reinicialização para a câmera em {ip}?\n\n"
+            "⚠️ O dispositivo levará de 1 a 2 minutos para reiniciar.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self.test_status_label.setText("Enviando comando de reinício...")
+        self.test_status_label.setStyleSheet("color: #FBBF24; font-size: 11px;")
+
+        cam_type = self.type_combo.currentData() or "generic"
+        xm_port = self.xm_port_spin.value()
+        user = self.user_edit.text().strip()
+        pwd = self.pass_edit.text().strip()
+        onvif_port = self.camera.onvif_port or 80
+
+        import threading
+
+        def _worker():
+            success = False
+            if cam_type == "icsee":
+                try:
+                    from ..network.xm_client import XMClient
+                    client = XMClient(ip=ip, port=xm_port, username=user, password=pwd, timeout=2.5)
+                    success = client.reboot()
+                except Exception:
+                    pass
+
+            if not success:
+                try:
+                    from ..network.onvif_ptz import ONVIFPTZClient
+                    onvif = ONVIFPTZClient(ip=ip, port=onvif_port, username=user, password=pwd, timeout=2.5)
+                    success = onvif.reboot()
+                except Exception:
+                    pass
+
+            if not success and cam_type != "icsee":
+                try:
+                    from ..network.xm_client import XMClient
+                    client = XMClient(ip=ip, port=xm_port, username=user, password=pwd, timeout=2.5)
+                    success = client.reboot()
+                except Exception:
+                    pass
+
+            msg = "Comando de reinicialização aceito!" if success else "Falha ao enviar comando de reinicialização."
+            self.reboot_result_ready.emit(success, msg)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_reboot_result(self, success: bool, message: str):
+        if success:
+            self.test_status_label.setText("✅ " + message)
+            self.test_status_label.setStyleSheet("color: #34D399; font-size: 11px;")
+            QMessageBox.information(
+                self,
+                "Reinicialização Enviada",
+                "Comando de reinicialização enviado com sucesso para o dispositivo.\n"
+                "A câmera ficará offline temporariamente durante a reinicialização."
+            )
+        else:
+            self.test_status_label.setText("❌ " + message)
+            self.test_status_label.setStyleSheet("color: #F87171; font-size: 11px;")
+            QMessageBox.warning(
+                self,
+                "Falha na Reinicialização",
+                "Não foi possível reiniciar a câmera.\n\n"
+                "Verifique o usuário, senha e se o dispositivo suporta comandos de reinício via ONVIF ou iCSee."
+            )
 
     def _save_and_accept(self):
         name = self.name_edit.text().strip()

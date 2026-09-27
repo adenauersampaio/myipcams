@@ -122,6 +122,7 @@ class MainWindow(QMainWindow):
         self.grid.edit_camera_requested.connect(self._edit_camera_by_id)
         self.grid.remove_camera_requested.connect(self._remove_camera_by_id)
         self.grid.camera_updated.connect(lambda _: self.storage.save_cameras(self.cameras))
+        self.grid.cameras_reordered.connect(self._on_cameras_reordered)
         self.grid.scan_network_requested.connect(self._open_discovery)
         self.grid.add_camera_requested.connect(self._add_camera_manual)
         self.setCentralWidget(self.grid)
@@ -231,6 +232,12 @@ class MainWindow(QMainWindow):
         msg = f"⚡ IP da Câmera '{camera.name}' atualizado dinamicamente: {old_ip} ➔ {new_ip}"
         self.status_bar.showMessage(msg, 10000)
         print(f"[MainWindow] {msg}")
+
+    def _on_cameras_reordered(self, reordered_cameras: List[Camera]):
+        """Persiste a nova ordem das câmeras após movimentação/arraste na grade."""
+        self.cameras = list(reordered_cameras)
+        self.storage.save_cameras(self.cameras)
+        self.status_bar.showMessage("Ordem dos cards de câmeras atualizada e salva!", 3000)
 
     def _update_status_counts(self):
         self.status_cam_count.setText(f"Câmeras: {len(self.cameras)}")

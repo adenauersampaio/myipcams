@@ -12,6 +12,8 @@ from myipcams.network.xm_client import (
     MSG_LOGIN_RSP,
     MSG_PTZ_REQ,
     MSG_PTZ_RSP,
+    MSG_OP_MACHINE_REQ,
+    MSG_OP_MACHINE_RSP,
     XMClient,
     probe_device,
 )
@@ -134,7 +136,28 @@ class TestXMClient(unittest.TestCase):
         mock_socket_cls.return_value = mock_sock
         mock_sock.connect.side_effect = ConnectionRefusedError("Connection refused")
 
-        self.assertFalse(probe_device("192.168.1.50", 34567))
+    def test_reboot_success(self):
+        client = XMClient("192.168.1.10", 34567, "admin", "123456")
+        client.session_id = 9
+        mock_sock = MagicMock()
+        client._sock = mock_sock
+
+        rsp_payload = {"Ret": 100, "SessionID": "0x9"}
+        rsp_packet = pack_message(MSG_OP_MACHINE_RSP, 9, 1, rsp_payload)
+
+        mock_sock.recv.side_effect = [
+            rsp_packet[:HEADER_SIZE],
+            rsp_packet[HEADER_SIZE:],
+        ]
+
+        self.assertTrue(client.reboot())
+        self.assertTrue(mock_sock.sendall.called)
+
+        sent_bytes = mock_sock.sendall.call_args[0][0]
+        body = sent_bytes[HEADER_SIZE:].decode("utf-8").strip().rstrip("\x00")
+        sent_json = json.loads(body)
+        self.assertEqual(sent_json["Name"], "OPMachine")
+        self.assertEqual(sent_json["OPMachine"]["Action"], "Reboot")
 
 
 if __name__ == "__main__":

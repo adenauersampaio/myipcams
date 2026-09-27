@@ -181,3 +181,81 @@ class ONVIFPTZClient:
             except Exception:
                 continue
         return False
+
+    def reboot(self) -> bool:
+        """Envia comando SystemReboot via ONVIF Device Management."""
+        wsse = generate_wsse_header(self.username, self.password)
+        body = f"""<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl">
+  <soap:Header>{wsse}</soap:Header>
+  <soap:Body>
+    <tds:SystemReboot/>
+  </soap:Body>
+</soap:Envelope>"""
+
+        device_urls = [
+            f"http://{self.ip}:{self.port}/onvif/device_service",
+            f"http://{self.ip}:{self.port}/onvif/Device",
+            f"http://{self.ip}:{self.port}/device_service",
+            f"http://{self.ip}:{self.port}/onvif/devices",
+        ]
+
+        # Tenta primeiro SOAP 1.2 e fallback para SOAP 1.1 se necessário
+        header_variants = [
+            {"Content-Type": "application/soap+xml; charset=utf-8; action=\"http://www.onvif.org/ver10/device/wsdl/SystemReboot\""},
+            {"Content-Type": "text/xml; charset=utf-8", "SOAPAction": "\"http://www.onvif.org/ver10/device/wsdl/SystemReboot\""},
+        ]
+
+        for url in device_urls:
+            for headers in header_variants:
+                try:
+                    resp = requests.post(
+                        url,
+                        data=body.encode("utf-8"),
+                        headers=headers,
+                        timeout=self.timeout,
+                    )
+                    if resp.status_code == 200 or "SystemRebootResponse" in resp.text:
+                        logger.info(f"Comando de reboot ONVIF aceito com sucesso por {url}")
+                        return True
+                except Exception as e:
+                    logger.debug(f"Falha de reboot ONVIF em {url} ({e})")
+                    continue
+        return False
+
+    def check_audio_support(self) -> Tuple[bool, bool]:
+        """Verifica se o perfil ONVIF possui entrada de áudio (microfone) e/ou saída (alto-falante).
+        
+        Retorna: (has_mic, has_speaker)
+        """
+        wsse = generate_wsse_header(self.username, self.password)
+        body = f"""<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" xmlns:trt="http://www.onvif.org/ver10/media/wsdl">
+  <soap:Header>{wsse}</soap:Header>
+  <soap:Body>
+    <trt:GetProfiles/>
+  </soap:Body>
+</soap:Envelope>"""
+
+        media_urls = [
+            f"http://{self.ip}:{self.port}/onvif/media_service",
+            f"http://{self.ip}:{self.port}/onvif/Media",
+            f"http://{self.ip}:{self.port}/media_service",
+        ]
+        for url in media_urls:
+            try:
+                resp = requests.post(
+                    url,
+                    data=body.encode("utf-8"),
+                    headers={"Content-Type": "application/soap+xml; charset=utf-8"},
+                    timeout=self.timeout,
+                )
+                if resp.status_code == 200:
+                    text = resp.text.lower()
+                    has_mic = "audioencoderconfiguration" in text or "audiosource" in text
+                    has_speaker = "audiooutput" in text or "backchannel" in text
+                    return (has_mic, has_speaker)
+            except Exception:
+                continue
+
+        return (False, False)

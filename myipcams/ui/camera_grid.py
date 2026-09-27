@@ -105,16 +105,20 @@ class CameraGrid(QWidget):
     edit_camera_requested = pyqtSignal(str)
     remove_camera_requested = pyqtSignal(str)
     camera_updated = pyqtSignal(str)
+    cameras_reordered = pyqtSignal(list)
     scan_network_requested = pyqtSignal()
     add_camera_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.cameras: List[Camera] = []
         self.layout_mode = "auto"   # "auto", "1x1", "2x2", "3x3"
         self.widgets: Dict[str, CameraWidget] = {}
         self.maximized_camera_id: Optional[str] = None
         self._main_splitter: Optional[QSplitter] = None
         self._saved_splitter_state: Optional[QByteArray] = None
+
+        self.setAcceptDrops(True)
 
         self.container_layout = QVBoxLayout(self)
         self.container_layout.setContentsMargins(4, 4, 4, 4)
@@ -129,6 +133,7 @@ class CameraGrid(QWidget):
 
     def set_cameras(self, cameras: List[Camera]):
         """Atualiza a lista de câmeras exibidas."""
+        self.cameras = list(cameras)
         current_ids = set(c.id for c in cameras)
 
         # Remove widgets antigos que não existem mais
@@ -149,9 +154,75 @@ class CameraGrid(QWidget):
                 widget.edit_requested.connect(self.edit_camera_requested.emit)
                 widget.remove_requested.connect(self.remove_camera_requested.emit)
                 widget.camera_updated.connect(self.camera_updated.emit)
+                widget.reorder_requested.connect(self.reorder_cameras)
+                widget.move_action_requested.connect(self.move_camera_action)
                 self.widgets[cam.id] = widget
 
         self.rebuild_layout()
+
+    def reorder_cameras(self, source_id: str, target_id: str):
+        """Move o card source_id para a posição do card target_id na grade."""
+        if source_id == target_id:
+            return
+
+        source_idx = next((i for i, c in enumerate(self.cameras) if c.id == source_id), None)
+        target_idx = next((i for i, c in enumerate(self.cameras) if c.id == target_id), None)
+
+        if source_idx is None or target_idx is None:
+            return
+
+        cam = self.cameras.pop(source_idx)
+        self.cameras.insert(target_idx, cam)
+        self.rebuild_layout()
+        self.cameras_reordered.emit(list(self.cameras))
+
+    def move_camera_action(self, camera_id: str, action: str):
+        """Aplica ação de movimentação rápida ("first", "prev", "next", "last")."""
+        idx = next((i for i, c in enumerate(self.cameras) if c.id == camera_id), None)
+        if idx is None:
+            return
+
+        n = len(self.cameras)
+        if n <= 1:
+            return
+
+        if action == "first":
+            target_idx = 0
+        elif action == "prev":
+            target_idx = max(0, idx - 1)
+        elif action == "next":
+            target_idx = min(n - 1, idx + 1)
+        elif action == "last":
+            target_idx = n - 1
+        else:
+            return
+
+        if target_idx != idx:
+            cam = self.cameras.pop(idx)
+            self.cameras.insert(target_idx, cam)
+            self.rebuild_layout()
+            self.cameras_reordered.emit(list(self.cameras))
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat("application/x-myipcams-camera-id"):
+            event.acceptProposedAction()
+            return
+        event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat("application/x-myipcams-camera-id"):
+            event.acceptProposedAction()
+            return
+        event.ignore()
+
+    def dropEvent(self, event):
+        if event.mimeData().hasFormat("application/x-myipcams-camera-id"):
+            source_id = event.mimeData().data("application/x-myipcams-camera-id").data().decode("utf-8")
+            if source_id and self.cameras:
+                event.acceptProposedAction()
+                self.move_camera_action(source_id, "last")
+                return
+        event.ignore()
 
     def update_camera_ip(self, camera_id: str, new_ip: str):
         """Notifica o widget correspondente sobre novo IP."""
@@ -207,7 +278,9 @@ class CameraGrid(QWidget):
             widget.set_maximized_state(False)
             widget.show()
 
-        cam_list = list(self.widgets.values())
+        cam_list = [self.widgets[c.id] for c in self.cameras if c.id in self.widgets]
+        if not cam_list:
+            cam_list = list(self.widgets.values())
         cam_count = len(cam_list)
 
         # Determina colunas

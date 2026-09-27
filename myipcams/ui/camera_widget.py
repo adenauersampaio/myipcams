@@ -4,9 +4,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
-from PyQt6.QtGui import QImage, QPixmap, QFont, QAction, QPainter
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QTimer, QPoint, QMimeData, QEvent
+from PyQt6.QtGui import QImage, QPixmap, QFont, QAction, QPainter, QDrag, QPen, QColor
 from PyQt6.QtWidgets import (
+    QApplication,
     QDialog,
     QLineEdit,
     QWidget,
@@ -23,6 +24,7 @@ from PyQt6.QtWidgets import (
 
 from ..core.camera import Camera
 from ..player.stream_worker import StreamWorker
+from ..player.audio_player import CameraAudioPlayer
 from .ptz_overlay import PTZOverlay
 from .xm_alarm_dialog import XMAlarmDialog
 from ..network.xm_client import XMClient, probe_device
@@ -139,6 +141,9 @@ class CameraWidget(QFrame):
     remove_requested = pyqtSignal(str) # emite camera_id
     reconnect_requested = pyqtSignal(str)
     camera_updated = pyqtSignal(str)   # emite camera_id quando as propriedades da câmera mudam
+    reboot_finished = pyqtSignal(bool, str) # emite (sucesso, mensagem_erro) após tentativa assíncrona
+    reorder_requested = pyqtSignal(str, str) # emite (source_cam_id, target_cam_id) ao soltar card
+    move_action_requested = pyqtSignal(str, str) # emite (camera_id, action) onde action in ("first", "prev", "next", "last")
 
     def __init__(self, camera: Camera, parent=None):
         super().__init__(parent)
@@ -148,7 +153,13 @@ class CameraWidget(QFrame):
         self._is_maximized_in_grid = False
         self._xm_client: Optional[XMClient] = None
         self._onvif_client: Optional[ONVIFPTZClient] = None
+        self._drag_start_pos: Optional[QPoint] = None
 
+        self.setAcceptDrops(True)
+        self.audio_player = CameraAudioPlayer(self.camera.get_rtsp_url(), self)
+        self.audio_player.muted_changed.connect(self._on_audio_muted_changed)
+
+        self.reboot_finished.connect(self._on_reboot_finished)
         self._setup_ui()
         self.update_camera_info()
         self.start_stream()
@@ -165,6 +176,10 @@ class CameraWidget(QFrame):
             }
             CameraWidget:hover {
                 border-color: #3B82F6;
+            }
+            CameraWidget[dropTarget="true"] {
+                border: 2px dashed #60A5FA;
+                background-color: #172338;
             }
             QPushButton#camActionBtn {
                 background-color: #1E232D;
@@ -213,6 +228,24 @@ class CameraWidget(QFrame):
         header.setContentsMargins(6, 4, 6, 2)
         header.setSpacing(4)
 
+        self.drag_handle = QLabel("⠿")
+        self.drag_handle.setObjectName("dragHandle")
+        self.drag_handle.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.drag_handle.setToolTip("Arraste para reposicionar a câmera na grade")
+        self.drag_handle.setStyleSheet("""
+            QLabel#dragHandle {
+                color: #64748B;
+                font-size: 16px;
+                font-weight: bold;
+                padding: 0 4px;
+            }
+            QLabel#dragHandle:hover {
+                color: #60A5FA;
+                background-color: #1E293B;
+                border-radius: 4px;
+            }
+        """)
+
         self.name_label = ClickableNameLabel(self.camera.name)
         self.name_label.setFont(QFont("sans-serif", 10, QFont.Weight.Bold))
         self.name_label.setStyleSheet("color: #FFFFFF;")
@@ -254,6 +287,7 @@ class CameraWidget(QFrame):
         self.btn_maximize.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_maximize.clicked.connect(self._on_maximize_clicked)
 
+        header.addWidget(self.drag_handle)
         header.addWidget(self.name_label)
         header.addWidget(self.btn_rename)
         header.addStretch()
@@ -309,6 +343,13 @@ class CameraWidget(QFrame):
         self.btn_ptz.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_ptz.clicked.connect(self._toggle_ptz)
 
+        self.btn_audio = QPushButton("🔇")
+        self.btn_audio.setObjectName("camActionBtn")
+        self.btn_audio.setToolTip("Ativar Som da Câmera (🔇)")
+        self.btn_audio.setFixedSize(28, 24)
+        self.btn_audio.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_audio.clicked.connect(self._toggle_audio)
+
         self.btn_snapshot = QPushButton("📸")
         self.btn_snapshot.setObjectName("camActionBtn")
         self.btn_snapshot.setToolTip("Tirar Foto (Snapshot)")
@@ -323,6 +364,13 @@ class CameraWidget(QFrame):
         self.btn_reconnect.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_reconnect.clicked.connect(self._restart_stream)
 
+        self.btn_reboot = QPushButton("⚡")
+        self.btn_reboot.setObjectName("camActionBtn")
+        self.btn_reboot.setToolTip("Reiniciar Câmera (Reboot)")
+        self.btn_reboot.setFixedSize(28, 24)
+        self.btn_reboot.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_reboot.clicked.connect(self._confirm_and_reboot)
+
         self.btn_edit = QPushButton("⚙️")
         self.btn_edit.setObjectName("camActionBtn")
         self.btn_edit.setToolTip("Configurar Câmera")
@@ -333,14 +381,22 @@ class CameraWidget(QFrame):
         footer.addWidget(self.stats_label)
         footer.addStretch()
         footer.addWidget(self.btn_ptz)
+        footer.addWidget(self.btn_audio)
         footer.addWidget(self.btn_snapshot)
         footer.addWidget(self.btn_reconnect)
+        footer.addWidget(self.btn_reboot)
         footer.addWidget(self.btn_edit)
         layout.addLayout(footer)
+
+        # Instala filtros de evento para detecção suave e precisa de drag & drop
+        for w in (self.drag_handle, self.name_label, self.ip_label, self.status_badge, self.video_container, self.video_label):
+            w.installEventFilter(self)
 
     def set_maximized_state(self, is_maximized: bool):
         """Atualiza o ícone e tooltip do botão de maximizar de acordo com o estado na grade."""
         self._is_maximized_in_grid = is_maximized
+        if hasattr(self, "drag_handle"):
+            self.drag_handle.setVisible(not is_maximized)
         if is_maximized:
             self.btn_maximize.setText("↙")
             self.btn_maximize.setToolTip("Restaurar Grade (↙)")
@@ -380,6 +436,8 @@ class CameraWidget(QFrame):
         new_url = self.camera.get_rtsp_url()
         if self.worker:
             self.worker.set_url(new_url)
+        if hasattr(self, "audio_player"):
+            self.audio_player.set_url(new_url)
 
     def start_stream(self):
         """Inicia a thread de captura de vídeo para a URL RTSP."""
@@ -404,6 +462,10 @@ class CameraWidget(QFrame):
 
     def stop_stream(self):
         """Finaliza a thread de captura com segurança."""
+        if hasattr(self, "audio_player"):
+            self.audio_player.stop()
+            self.audio_player.set_muted(True)
+
         if self.worker:
             self.worker.stop()
             self.worker = None
@@ -416,6 +478,21 @@ class CameraWidget(QFrame):
                 except Exception:
                     pass
             self.thread = None
+
+    def _toggle_audio(self):
+        """Alterna entre mudo e reprodução de som da câmera."""
+        self.audio_player.toggle_mute()
+
+    def _on_audio_muted_changed(self, is_muted: bool):
+        """Atualiza a aparência do botão de áudio de acordo com o estado."""
+        if is_muted:
+            self.btn_audio.setText("🔇")
+            self.btn_audio.setToolTip("Ativar Som da Câmera (🔇)")
+            self.btn_audio.setStyleSheet("")
+        else:
+            self.btn_audio.setText("🔊")
+            self.btn_audio.setToolTip("Desativar Som da Câmera (🔊)")
+            self.btn_audio.setStyleSheet("color: #34D399; border-color: #059669; background-color: #064E3B;")
 
     def _restart_stream(self):
         self.video_label.clear_frame("Reconectando...")
@@ -482,6 +559,193 @@ class CameraWidget(QFrame):
         else:
             QMessageBox.warning(self, "Aviso", "Câmera não está transmitindo no momento.")
 
+    def _confirm_and_reboot(self):
+        """Exibe confirmação e envia comando de reinicialização para a câmera."""
+        reply = QMessageBox.question(
+            self,
+            "Reiniciar Câmera",
+            f"Deseja realmente enviar o comando de reinicialização para a câmera '{self.camera.name}' ({self.camera.current_ip})?\n\n"
+            "⚠️ O sinal de vídeo será interrompido e a câmera levará de 1 a 2 minutos para reiniciar.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self.btn_reboot.setEnabled(False)
+        self.btn_reboot.setToolTip("Enviando comando de reinicialização...")
+        self.stats_label.setText("Reiniciando...")
+        self._set_status("reconnecting")
+
+        def _worker():
+            success = False
+            error_msg = ""
+            # 1. Se câmera for do tipo iCSee, tenta primeiro XMClient
+            if self.camera.camera_type == "icsee":
+                try:
+                    client = self._get_xm_client()
+                    if client and client.reboot():
+                        success = True
+                except Exception as e:
+                    error_msg = str(e)
+
+            # 2. Se falhou ou não é iCSee, tenta ONVIF
+            if not success:
+                try:
+                    onvif = self._get_onvif_client()
+                    if onvif and onvif.reboot():
+                        success = True
+                except Exception as e:
+                    if not error_msg:
+                        error_msg = str(e)
+
+            # 3. Fallback: se ainda não teve sucesso e não tentou XMClient
+            if not success and self.camera.camera_type != "icsee":
+                try:
+                    client = self._get_xm_client()
+                    if client and client.reboot():
+                        success = True
+                except Exception as e:
+                    if not error_msg:
+                        error_msg = str(e)
+
+            self.reboot_finished.emit(success, error_msg)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_reboot_finished(self, success: bool, error_msg: str):
+        self.btn_reboot.setEnabled(True)
+        self.btn_reboot.setToolTip("Reiniciar Câmera (Reboot)")
+
+        if success:
+            QMessageBox.information(
+                self,
+                "Comando de Reinicialização Enviado",
+                f"O comando de reinicialização foi enviado com sucesso para a câmera '{self.camera.name}'.\n\n"
+                "A câmera foi instruída a reiniciar e o aplicativo tentará restabelecer a conexão automaticamente.",
+            )
+            self.stop_stream()
+            self._set_status("reconnecting")
+            self.video_label.clear_frame("Câmera Reiniciando...")
+            QTimer.singleShot(15000, self._restart_stream)
+        else:
+            QMessageBox.warning(
+                self,
+                "Falha na Reinicialização",
+                f"Não foi possível reiniciar a câmera '{self.camera.name}'.\n\n"
+                "Verifique se a câmera suporta comandos de reinicialização remota (via protocolo Xiongmai/iCSee ou ONVIF) "
+                "e se as credenciais de usuário e senha estão corretas.",
+            )
+            self._restart_stream()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start_pos = event.globalPosition().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._drag_start_pos and (event.buttons() & Qt.MouseButton.LeftButton):
+            if (event.globalPosition().toPoint() - self._drag_start_pos).manhattanLength() >= QApplication.startDragDistance():
+                self._drag_start_pos = None
+                self._start_drag()
+                return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self._drag_start_pos = None
+        super().mouseReleaseEvent(event)
+
+    def eventFilter(self, obj, event):
+        if obj in (
+            getattr(self, "drag_handle", None),
+            getattr(self, "name_label", None),
+            getattr(self, "ip_label", None),
+            getattr(self, "status_badge", None),
+            getattr(self, "video_container", None),
+            getattr(self, "video_label", None),
+        ):
+            if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+                self._drag_start_pos = event.globalPosition().toPoint()
+            elif event.type() == QEvent.Type.MouseMove and (event.buttons() & Qt.MouseButton.LeftButton):
+                if self._drag_start_pos and (event.globalPosition().toPoint() - self._drag_start_pos).manhattanLength() >= QApplication.startDragDistance():
+                    self._drag_start_pos = None
+                    self._start_drag()
+                    return True
+            elif event.type() == QEvent.Type.MouseButtonRelease:
+                self._drag_start_pos = None
+        return super().eventFilter(obj, event)
+
+    def _start_drag(self):
+        """Inicia operação de arrasto com thumbnail translúcida estilizada."""
+        if self._is_maximized_in_grid:
+            return
+
+        drag = QDrag(self)
+        mime_data = QMimeData()
+        mime_data.setData("application/x-myipcams-camera-id", self.camera.id.encode("utf-8"))
+        drag.setMimeData(mime_data)
+
+        # Captura thumbnail do card para feedback visual durante o arraste
+        try:
+            pixmap = self.grab()
+            thumb = pixmap.scaled(240, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            styled_thumb = QPixmap(thumb.size())
+            styled_thumb.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(styled_thumb)
+            painter.setOpacity(0.85)
+            painter.drawPixmap(0, 0, thumb)
+            pen = QPen(QColor("#3B82F6"), 3)
+            painter.setPen(pen)
+            painter.drawRoundedRect(1, 1, thumb.width() - 2, thumb.height() - 2, 6, 6)
+            painter.end()
+
+            drag.setPixmap(styled_thumb)
+            drag.setHotSpot(QPoint(styled_thumb.width() // 2, 20))
+        except Exception:
+            pass
+
+        self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        try:
+            drag.exec(Qt.DropAction.MoveAction)
+        finally:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def _set_drop_highlight(self, active: bool):
+        self.setProperty("dropTarget", active)
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat("application/x-myipcams-camera-id"):
+            source_id = event.mimeData().data("application/x-myipcams-camera-id").data().decode("utf-8")
+            if source_id != self.camera.id:
+                event.acceptProposedAction()
+                self._set_drop_highlight(True)
+                return
+        event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat("application/x-myipcams-camera-id"):
+            source_id = event.mimeData().data("application/x-myipcams-camera-id").data().decode("utf-8")
+            if source_id != self.camera.id:
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self._set_drop_highlight(False)
+        super().dragLeaveEvent(event)
+
+    def dropEvent(self, event):
+        self._set_drop_highlight(False)
+        if event.mimeData().hasFormat("application/x-myipcams-camera-id"):
+            source_id = event.mimeData().data("application/x-myipcams-camera-id").data().decode("utf-8")
+            if source_id != self.camera.id:
+                event.acceptProposedAction()
+                self.reorder_requested.emit(source_id, self.camera.id)
+                return
+        event.ignore()
+
     def mouseDoubleClickEvent(self, event):
         """Duplo clique maximiza/restaura a câmera na grade."""
         if event.button() == Qt.MouseButton.LeftButton:
@@ -524,7 +788,7 @@ class CameraWidget(QFrame):
         return self._onvif_client
 
     def _toggle_ptz(self):
-        vis = not self.ptz_overlay.isVisible()
+        vis = self.ptz_overlay.isHidden()
         self.ptz_overlay.setVisible(vis)
 
     def _on_ptz_move(self, direction: str, speed: int):
@@ -615,9 +879,35 @@ class CameraWidget(QFrame):
         act_max.triggered.connect(self._on_maximize_clicked)
         menu.addAction(act_max)
 
+        menu_order = menu.addMenu("↕️ Mover Posição do Card")
+        act_move_first = QAction("⏮ Mover para o Início (Primeira)", self)
+        act_move_first.triggered.connect(lambda: self.move_action_requested.emit(self.camera.id, "first"))
+        menu_order.addAction(act_move_first)
+
+        act_move_prev = QAction("◀ Mover para a Esquerda / Cima", self)
+        act_move_prev.triggered.connect(lambda: self.move_action_requested.emit(self.camera.id, "prev"))
+        menu_order.addAction(act_move_prev)
+
+        act_move_next = QAction("▶ Mover para a Direita / Baixo", self)
+        act_move_next.triggered.connect(lambda: self.move_action_requested.emit(self.camera.id, "next"))
+        menu_order.addAction(act_move_next)
+
+        act_move_last = QAction("⏭ Mover para o Fim (Última)", self)
+        act_move_last.triggered.connect(lambda: self.move_action_requested.emit(self.camera.id, "last"))
+        menu_order.addAction(act_move_last)
+
         act_recon = QAction("🔄 Reconectar", self)
         act_recon.triggered.connect(self._restart_stream)
         menu.addAction(act_recon)
+
+        is_audio_muted = self.audio_player.is_muted() if hasattr(self, "audio_player") else True
+        act_audio = QAction("🔊 Ativar Som" if is_audio_muted else "🔇 Desativar Som", self)
+        act_audio.triggered.connect(self._toggle_audio)
+        menu.addAction(act_audio)
+
+        act_reboot = QAction("⚡ Reiniciar Câmera (Reboot)...", self)
+        act_reboot.triggered.connect(self._confirm_and_reboot)
+        menu.addAction(act_reboot)
 
         act_snap = QAction("📸 Tirar Foto", self)
         act_snap.triggered.connect(self._take_snapshot)

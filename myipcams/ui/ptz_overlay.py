@@ -115,7 +115,7 @@ class PTZPanel(QFrame):
 
         top_bar.addStretch()
 
-        self.btn_close = QPushButton("✕")
+        self.btn_close = QPushButton("×")
         self.btn_close.setObjectName("ptzCloseBtn")
         self.btn_close.setFixedSize(16, 16)
         self.btn_close.setCursor(Qt.CursorShape.PointingHandCursor)

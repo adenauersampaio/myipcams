@@ -17,12 +17,12 @@ class TestUIIcseeSupport(unittest.TestCase):
             name="Câmera Genérica",
             current_ip="192.168.1.50",
             camera_type="generic",
+            onvif_port=0,
             enabled=False,
         )
         widget = CameraWidget(cam)
-        widget.show()
-        self.assertFalse(widget.btn_ptz.isVisible())
-        self.assertFalse(widget.ptz_overlay.isVisible())
+        self.assertTrue(widget.btn_ptz.isHidden())
+        self.assertTrue(widget.ptz_overlay.isHidden())
         widget.stop_stream()
 
     def test_icsee_camera_widget_shows_ptz(self):
@@ -34,29 +34,26 @@ class TestUIIcseeSupport(unittest.TestCase):
             enabled=False,
         )
         widget = CameraWidget(cam)
-        widget.show()
-        self.assertTrue(widget.btn_ptz.isVisible())
-        self.assertFalse(widget.ptz_overlay.isVisible())
+        self.assertFalse(widget.btn_ptz.isHidden())
+        self.assertTrue(widget.ptz_overlay.isHidden())
 
         # Clicar no botão PTZ deve alternar a visibilidade do overlay
         widget._toggle_ptz()
-        self.assertTrue(widget.ptz_overlay.isVisible())
+        self.assertFalse(widget.ptz_overlay.isHidden())
         widget._toggle_ptz()
-        self.assertFalse(widget.ptz_overlay.isVisible())
+        self.assertTrue(widget.ptz_overlay.isHidden())
         widget.stop_stream()
 
     def test_camera_edit_dialog_loads_and_toggles_type(self):
         cam_gen = Camera(name="Gen", current_ip="192.168.1.10", camera_type="generic")
         dialog_gen = CameraEditDialog(cam_gen)
-        dialog_gen.show()
         self.assertEqual(dialog_gen.type_combo.currentData(), "generic")
-        self.assertFalse(dialog_gen.xm_port_spin.isVisible())
+        self.assertTrue(dialog_gen.xm_port_spin.isHidden())
 
         cam_icsee = Camera(name="XM", current_ip="192.168.1.20", camera_type="icsee", xm_port=34567)
         dialog_icsee = CameraEditDialog(cam_icsee)
-        dialog_icsee.show()
         self.assertEqual(dialog_icsee.type_combo.currentData(), "icsee")
-        self.assertTrue(dialog_icsee.xm_port_spin.isVisible())
+        self.assertFalse(dialog_icsee.xm_port_spin.isHidden())
 
 
 if __name__ == "__main__":

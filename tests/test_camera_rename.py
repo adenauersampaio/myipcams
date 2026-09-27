@@ -39,7 +39,6 @@ class TestCameraRename(unittest.TestCase):
     def test_camera_widget_has_rename_ui_elements(self):
         cam = Camera(name="Câmera 1", current_ip="192.168.1.100", enabled=False)
         widget = CameraWidget(cam)
-        widget.show()
 
         # Verifica existência dos elementos visuais de edição
         self.assertEqual(widget.name_label.text(), "Câmera 1")
@@ -54,7 +53,6 @@ class TestCameraRename(unittest.TestCase):
     def test_camera_widget_renaming_emits_updated_signal(self):
         cam = Camera(name="Original", current_ip="192.168.1.100", enabled=False)
         widget = CameraWidget(cam)
-        widget.show()
 
         updated_ids = []
         widget.camera_updated.connect(lambda cid: updated_ids.append(cid))
@@ -72,7 +70,6 @@ class TestCameraRename(unittest.TestCase):
 
     def test_discovery_dialog_custom_name_added(self):
         dialog = DiscoveryDialog()
-        dialog.show()
 
         disc_cams = [
             DiscoveredCamera(

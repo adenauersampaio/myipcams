@@ -23,6 +23,10 @@ MSG_CONFIG_SET_REQ = 1040   # 0x0410
 MSG_CONFIG_SET_RSP = 1041   # 0x0411
 MSG_PTZ_REQ = 1400          # 0x0578
 MSG_PTZ_RSP = 1401          # 0x0579
+MSG_OP_MACHINE_REQ = 1450   # 0x05AA
+MSG_OP_MACHINE_RSP = 1451   # 0x05AB
+MSG_TALK_REQ = 1420         # 0x058C
+MSG_TALK_RSP = 1421         # 0x058D
 
 PTZ_COMMANDS = {
     "up": "DirectionUp",
@@ -420,3 +424,57 @@ class XMClient:
         }
         resp = self._send_and_receive(MSG_CONFIG_SET_REQ, payload)
         return bool(resp and resp.get("Ret") == 100)
+
+    def reboot(self) -> bool:
+        """Envia comando de reinicialização (reboot) para a câmera Xiongmai / iCSee."""
+        if not self.ensure_connected():
+            return False
+
+        session_formatted = f"0x{self.session_id:08X}"
+        payload = {
+            "Name": "OPMachine",
+            "OPMachine": {
+                "Action": "Reboot"
+            },
+            "SessionID": session_formatted,
+        }
+
+        try:
+            resp = self._send_and_receive(MSG_OP_MACHINE_REQ, payload)
+            if resp and resp.get("Ret") == 100:
+                logger.info(f"Comando de reboot Xiongmai enviado com sucesso para {self.ip}:{self.port}")
+                return True
+        except Exception as e:
+            logger.debug(f"Exceção durante envio de reboot Xiongmai via MSG_OP_MACHINE_REQ: {e}")
+
+        # Se falhou via MSG_OP_MACHINE_REQ, tenta via MSG_CONFIG_SET_REQ como fallback
+        try:
+            resp_fallback = self._send_and_receive(MSG_CONFIG_SET_REQ, payload)
+            if resp_fallback and resp_fallback.get("Ret") == 100:
+                logger.info(f"Comando de reboot Xiongmai (fallback) enviado com sucesso para {self.ip}:{self.port}")
+                return True
+        except Exception:
+            pass
+
+        return False
+
+    def check_talk_support(self) -> bool:
+        """Verifica se a câmera suporta intercomunicador de voz (bidirecional)."""
+        if not self.ensure_connected():
+            return False
+
+        session_formatted = f"0x{self.session_id:08X}"
+        payload = {
+            "Name": "SystemFunction",
+            "SessionID": session_formatted,
+        }
+        try:
+            resp = self._send_and_receive(MSG_CONFIG_GET_REQ, payload)
+            if resp and resp.get("Ret") == 100:
+                sys_func = resp.get("SystemFunction", {})
+                if sys_func.get("Talk") or sys_func.get("AudioFunction", {}).get("Talk"):
+                    return True
+        except Exception:
+            pass
+
+        return False
