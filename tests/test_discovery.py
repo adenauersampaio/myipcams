@@ -49,6 +49,24 @@ class TestDiscovery(unittest.TestCase):
         self.assertEqual(cam.rtsp_port, 554)
         self.assertIn(80, cam.open_ports)
 
+    def test_parse_ws_probe_match_stale_xaddrs_ip(self):
+        # Quando a câmera anuncia um IP desatualizado/fábrica (ex: 192.168.1.10 no XAddrs),
+        # mas o pacote UDP veio do IP real da sub-rede (ex: 192.168.10.25)
+        stale_xml = SAMPLE_PROBE_MATCH.replace("192.168.1.188:80", "192.168.1.10:8899")
+        cam = NetworkDiscovery._parse_ws_probe_match(stale_xml, "192.168.10.25")
+        self.assertIsNotNone(cam)
+        self.assertEqual(cam.ip, "192.168.10.25")
+        self.assertEqual(cam.port, 8899)
+        self.assertEqual(cam.xaddrs, "http://192.168.10.25:8899/onvif/device_service")
+
+    def test_fix_xaddrs_ip(self):
+        original = "http://192.168.1.10:8899/onvif/device_service http://192.168.1.10/onvif/media"
+        fixed = NetworkDiscovery._fix_xaddrs_ip(original, "192.168.10.25")
+        self.assertEqual(
+            fixed,
+            "http://192.168.10.25:8899/onvif/device_service http://192.168.10.25/onvif/media"
+        )
+
     def test_get_primary_subnet(self):
         subnet = NetworkDiscovery.get_primary_subnet()
         self.assertIsInstance(subnet, str)

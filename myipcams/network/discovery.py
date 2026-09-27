@@ -256,6 +256,29 @@ class NetworkDiscovery:
 
         return cameras
 
+    @staticmethod
+    def _fix_xaddrs_ip(xaddrs_str: str, correct_ip: str) -> str:
+        """
+        Corrige os endereços em XAddrs para o IP real da câmera caso o firmware tenha
+        anunciado um IP antigo/de fábrica diferente do IP de origem do pacote UDP.
+        """
+        if not xaddrs_str or not correct_ip:
+            return xaddrs_str
+
+        fixed_urls = []
+        for url in xaddrs_str.split():
+            try:
+                parsed = urllib.parse.urlsplit(url)
+                if parsed.hostname and parsed.hostname != correct_ip:
+                    port_str = f":{parsed.port}" if parsed.port else ""
+                    netloc = f"{correct_ip}{port_str}"
+                    fixed_urls.append(urllib.parse.urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment)))
+                else:
+                    fixed_urls.append(url)
+            except Exception:
+                fixed_urls.append(url)
+        return " ".join(fixed_urls)
+
     @classmethod
     def _parse_ws_probe_match(cls, xml_text: str, fallback_ip: str) -> Optional[DiscoveredCamera]:
         """Extrai IP, XAddrs, UUID, Scopes e modelo a partir da resposta XML."""
@@ -281,11 +304,20 @@ class NetworkDiscovery:
             port = 80
             if xaddrs:
                 first_url = xaddrs.split()[0]
-                parsed = urllib.parse.urlparse(first_url)
-                if parsed.hostname:
-                    ip = parsed.hostname
+                parsed = urllib.parse.urlsplit(first_url)
                 if parsed.port:
                     port = parsed.port
+
+                # Prioriza o IP real (fallback_ip) de onde o pacote UDP fisicamente veio na rede local.
+                # Se fallback_ip não foi fornecido ou for nulo/0.0.0.0, usamos o hostname do XAddrs.
+                if not ip or ip == "0.0.0.0":
+                    if parsed.hostname:
+                        ip = parsed.hostname
+                elif parsed.hostname and parsed.hostname != ip:
+                    # O pacote UDP veio de fallback_ip, mas o firmware da câmera ainda anuncia um IP
+                    # de fábrica ou desatualizado no XML (comum em chips Xiongmai/ICSee).
+                    # Corrigimos xaddrs para apontar para o IP real da rede.
+                    xaddrs = cls._fix_xaddrs_ip(xaddrs, ip)
 
             mac = ARPTable.find_mac_by_ip(ip)
 
