@@ -2,7 +2,22 @@ import os
 import sys
 from pathlib import Path
 from typing import Optional
-from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtCore import QByteArray, Qt
+from PyQt6.QtGui import QIcon, QPainter, QPixmap
+from PyQt6.QtSvg import QSvgRenderer
+
+
+_SVG_EYE = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+  <circle cx="12" cy="12" r="3"/>
+</svg>"""
+
+_SVG_EYE_OFF = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+  <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+  <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+  <line x1="2" y1="2" x2="22" y2="22"/>
+</svg>"""
 
 
 def get_project_root() -> Path:
@@ -83,3 +98,34 @@ def get_camera_video_path() -> Optional[str]:
     """Retorna o caminho do vídeo MP4 da câmera de segurança."""
     p = get_asset_path("Security_camera_pans_left_right_20260927120723.mp4")
     return str(p) if p else None
+
+
+def get_eye_icon(visible: bool = False) -> QIcon:
+    """
+    Retorna o QIcon vetorial para alternar a exibição da senha.
+    - visible=False: Ícone de olho aberto (ação: 'Mostrar senha').
+    - visible=True: Ícone de olho com barra (ação: 'Ocultar senha').
+    Gera múltiplas resoluções (16, 20, 24, 32px) com estados Normal (#94A3B8)
+    e Active/Hover (#38BDF8) para nitidez total em telas HiDPI/Retina.
+    """
+    template = _SVG_EYE_OFF if visible else _SVG_EYE
+    icon = QIcon()
+
+    modes = [
+        (QIcon.Mode.Normal, "#94A3B8"),
+        (QIcon.Mode.Active, "#38BDF8"),
+        (QIcon.Mode.Selected, "#FFFFFF"),
+    ]
+
+    for mode, color in modes:
+        svg_bytes = template.format(color=color).encode("utf-8")
+        renderer = QSvgRenderer(QByteArray(svg_bytes))
+        for size in [16, 20, 24, 32]:
+            pm = QPixmap(size, size)
+            pm.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(pm)
+            renderer.render(painter)
+            painter.end()
+            icon.addPixmap(pm, mode)
+
+    return icon

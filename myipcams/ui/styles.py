@@ -127,6 +127,24 @@ QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
     border: 1px solid #3B82F6;
 }
 
+/* Botões internos de inputs (ex: alternador de visibilidade de senha) */
+QLineEdit QToolButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin: 0px 2px;
+}
+
+QLineEdit QToolButton:hover {
+    background-color: #2D3748;
+    border-color: transparent;
+}
+
+QLineEdit QToolButton:pressed {
+    background-color: #374151;
+}
+
 /* Tabelas e Listas */
 QTableWidget, QTreeWidget, QListWidget {
     background-color: #161920;

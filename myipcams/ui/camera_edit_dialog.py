@@ -19,6 +19,7 @@ from ..core.camera import Camera
 from ..network.arp import ARPTable, normalize_mac
 from ..network.xm_client import probe_device
 from .assets import get_app_icon
+from .password_edit import PasswordLineEdit
 
 
 class ConnectionTester(QThread):
@@ -104,9 +105,7 @@ class CameraEditDialog(QDialog):
         self.user_edit = QLineEdit()
         self.user_edit.setPlaceholderText("Usuário (ex: admin)")
 
-        self.pass_edit = QLineEdit()
-        self.pass_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.pass_edit.setPlaceholderText("Senha da câmera")
+        self.pass_edit = PasswordLineEdit(placeholder="Senha da câmera")
 
         self.enabled_check = QCheckBox("Câmera Habilitada")
         self.enabled_check.setChecked(True)

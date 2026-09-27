@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 from ..core.camera import Camera
 from ..network.discovery import NetworkDiscovery, DiscoveredCamera
 from .assets import get_app_icon
+from .password_edit import PasswordLineEdit
 
 
 class DiscoveryWorker(QThread):
@@ -141,10 +142,8 @@ class DiscoveryDialog(QDialog):
         cred_layout.addWidget(self.user_input)
 
         cred_layout.addWidget(QLabel("Senha padrão:"))
-        self.pass_input = QLineEdit()
-        self.pass_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.pass_input.setPlaceholderText("senha")
-        self.pass_input.setMaximumWidth(120)
+        self.pass_input = PasswordLineEdit(placeholder="senha")
+        self.pass_input.setMaximumWidth(140)
         cred_layout.addWidget(self.pass_input)
 
         cred_layout.addWidget(QLabel("Canal:"))
