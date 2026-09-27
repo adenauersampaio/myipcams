@@ -55,7 +55,7 @@ def get_app_icon() -> QIcon:
     icon = QIcon()
 
     # Tenta carregar ícones PNG gerados em várias resoluções
-    sizes = [32, 48, 64, 128, 256, 512]
+    sizes = [16, 24, 32, 48, 64, 128, 256, 512]
     loaded_any = False
     for sz in sizes:
         p = get_asset_path(f"icon_{sz}.png")

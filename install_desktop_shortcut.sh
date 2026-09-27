@@ -31,7 +31,7 @@ fi
 mkdir -p "$DESKTOP_DIR"
 
 # 3. Copia ícones para o tema hicolor do usuário
-for sz in 32 48 64 128 256 512; do
+for sz in 16 24 32 48 64 128 256 512; do
     if [ -f "assets/icon_${sz}.png" ]; then
         target_dir="$ICONS_BASE_DIR/${sz}x${sz}/apps"
         mkdir -p "$target_dir"

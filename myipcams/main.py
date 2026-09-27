@@ -27,7 +27,7 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("MyIPCams")
     app.setOrganizationName("MyIPCams")
-    app.setDesktopFileName("myipcams.desktop")
+    app.setDesktopFileName("myipcams")
     app.setWindowIcon(get_app_icon())
 
 
