@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=MyIPCams
+GenericName=Visualizador de Câmeras IP
+Comment=Visualizador de Câmeras IP com Auto-Discovery e Rastreamento Dinâmico de IPs
+Exec=/home/adenauer/dev/apps/myipcams/run.sh
+Icon=/home/adenauer/dev/apps/myipcams/assets/icon_256.png
+Terminal=false
+Categories=AudioVideo;Video;Network;Security;
+Keywords=ipcam;camera;cctv;onvif;rtsp;dvr;nvr;
+StartupNotify=true
+StartupWMClass=myipcams
