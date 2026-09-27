@@ -1,10 +1,25 @@
-# MyIPCams - Visualizador de Câmeras IP com Rastreamento Dinâmico de IPs
+<div align="center">
+
+# MyIPCams 📹
+
+**Visualizador de Câmeras IP com Rastreamento Dinâmico de IPs**  
+**Cross-Platform IP Camera Viewer with Dynamic IP Tracking**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey.svg)](https://github.com/adenauersampaio/myipcams)
 [![UI: PyQt6](https://img.shields.io/badge/UI-PyQt6-green.svg)](https://www.riverbankcomputing.com/software/pyqt/)
 [![Streaming: OpenCV](https://img.shields.io/badge/Streaming-OpenCV%20FFmpeg-red.svg)](https://opencv.org/)
+
+[🇧🇷 Versão em Português](#-português) • [🇺🇸 English Version](#-english)
+
+</div>
+
+---
+
+# 🇧🇷 Português
+
+## 📋 Sobre o Projeto
 
 **MyIPCams** é uma aplicação desktop multiplataforma (**Linux, Windows e macOS**) desenvolvida para visualização e gerenciamento de câmeras IP (RTSP, ONVIF e protocolo iCSee/Xiongmai), projetada para solucionar o problema crônico de câmeras de segurança que perdem a conexão quando o roteador (DHCP) altera o seu endereço IP.
 
@@ -22,12 +37,12 @@ Diferente de visualizadores de CFTV tradicionais que exigem configurações ríg
   - Localiza câmeras ONVIF e RTSP na sua sub-rede local com apenas 1 clique.
   - Detecta automaticamente nome, fabricante, modelo de hardware, portas abertas, IP e MAC.
 - **🌐 100% Multiplataforma**:
-  - Totalmente testado e compatível com **Linux**, **Microsoft Windows** e **Apple macOS**.
+  - Totalmente compatível com **Linux**, **Microsoft Windows** e **Apple macOS**.
   - Detecção inteligente de interfaces e sub-redes em qualquer sistema operacional.
 - **🎮 Suporte Modular a Câmeras iCSee / Xiongmai / Sofia**:
-  - **100% de compatibilidade preservada**: Câmeras genéricas funcionam normalmente apenas com stream RTSP padrão.
-  - **Controle PTZ em tempo real**: Painel direcional (D-Pad) com controle de velocidade integrado via protocolo nativo Sofia (porta 34567).
-  - **Gerenciador de Alarmes e IA**: Configuração de detecção de movimento e filtro de silhueta humana por IA diretamente pela aplicação.
+  - **100% de compatibilidade preservada**: Câmeras genéricas funcionam normalmente via stream RTSP padrão.
+  - **Controle PTZ em tempo real**: D-Pad direcional translúcido com controle de velocidade integrado via protocolo Sofia (porta 34567).
+  - **Gerenciador de Alarmes e IA**: Configuração de detecção de movimento e filtro de silhueta humana por IA diretamente pelo app.
   - **Auto-Detecção Inteligente**: Marcação automática durante a varredura quando a porta 34567 está aberta.
 - **🎥 Grade Flexível de Vídeo**:
   - Mosaicos adaptáveis (1x1, 2x2, 3x3 ou Auto).
@@ -52,82 +67,40 @@ git clone https://github.com/adenauersampaio/myipcams.git
 cd myipcams
 ```
 
----
-
 ### 🐧 No Linux (Ubuntu, Debian, Fedora, Arch, Zorin OS, etc.)
 
-#### Pré-requisitos:
 ```bash
-# Ubuntu / Debian / Zorin OS / Mint:
-sudo apt update
-sudo apt install python3 python3-venv python3-pip ffmpeg
+# Dependências do sistema (Ubuntu/Debian):
+sudo apt update && sudo apt install python3 python3-venv python3-pip ffmpeg
 
-# Fedora:
-sudo dnf install python3 python3-pip ffmpeg
-
-# Arch Linux:
-sudo pacman -S python python-pip ffmpeg
-```
-
-#### Inicialização Rápida:
-```bash
+# Execução rápida:
 ./run.sh
-```
 
-#### Atalho no Menu de Aplicativos (Opcional):
-Para integrar o MyIPCams ao menu do seu sistema com o ícone oficial:
-```bash
+# Atalho no menu do sistema (opcional):
 ./install_desktop_shortcut.sh
 ```
 
----
-
 ### 🪟 No Windows (Windows 10 / 11)
 
-#### Pré-requisitos:
-1. Instale o [Python 3.10 ou superior](https://www.python.org/downloads/windows/) (certifique-se de marcar a opção **"Add Python to PATH"** durante a instalação).
-
-#### Inicialização Rápida:
-Dê um duplo clique no arquivo `run.bat` ou execute no Prompt de Comando / PowerShell:
+Dê um duplo clique no arquivo `run.bat` ou execute no Prompt / PowerShell:
 ```cmd
 run.bat
 ```
-Ou manualmente:
-```cmd
-python -m venv .venv
-call .venv\Scripts\activate.bat
-pip install -e .
-python -m myipcams.main
-```
+*(Cria o ambiente virtual automaticamente, instala as dependências e inicia o app).*
 
----
+### 🍎 No macOS (Intel & Apple Silicon)
 
-### 🍎 No macOS (Intel & Apple Silicon M1/M2/M3)
-
-#### Pré-requisitos:
-Instale o Python e FFmpeg (caso utilize Homebrew):
 ```bash
+# Dependências via Homebrew:
 brew install python ffmpeg
-```
 
-#### Inicialização Rápida:
-No Terminal:
-```bash
+# Execução:
 ./run.sh
-```
-Ou manualmente:
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-python3 -m myipcams.main
 ```
 
 ---
 
 ## 🔧 Formatos RTSP Típicos por Fabricante
-
-Ao adicionar ou editar uma câmera, o campo de caminho do canal RTSP já traz sugestões pré-configuradas:
 
 | Fabricante | Caminho RTSP Padrão | Exemplo Completo de Stream |
 |---|---|---|
@@ -141,58 +114,134 @@ Ao adicionar ou editar uma câmera, o campo de caminho do canal RTSP já traz su
 
 ---
 
-## 📁 Estrutura do Projeto
+# 🇺🇸 English
 
+## 📋 About The Project
+
+**MyIPCams** is a modern, cross-platform desktop application (**Linux, Windows, and macOS**) designed for viewing and managing IP security cameras (supporting RTSP, ONVIF, and iCSee/Xiongmai protocols). It was built to eliminate the common issue of cameras losing connection whenever a local DHCP router reassigns their IP addresses.
+
+Instead of relying on fragile static IP configurations, **MyIPCams** associates each camera with its persistent hardware network identifiers (**MAC Address** and/or **ONVIF UUID**). A lightweight background service continuously monitors network state and updates video streams automatically the moment an IP changes, requiring zero manual reconfiguration.
+
+---
+
+## 🌟 Key Features
+
+- **⚡ Dynamic IP Tracking (Auto-Healing)**:
+  - Real-time resolution via cross-platform ARP tables (`/proc/net/arp` and `ip neigh` on Linux, `arp -a` on Windows, `arp -an` on macOS).
+  - Background ONVIF WS-Discovery probes (UDP port 3702).
+  - Seamless stream reconnection as soon as the camera is detected on its new IP.
+- **🔍 One-Click Auto-Discovery**:
+  - Automatically scans your local subnet for ONVIF and RTSP video endpoints.
+  - Retrieves camera name, manufacturer, hardware model, open ports, IP, and MAC address.
+- **🌐 100% Cross-Platform**:
+  - Fully tested and supported on **Linux**, **Microsoft Windows**, and **Apple macOS**.
+  - Native path and network interface handling across operating systems.
+- **🎮 Dedicated Support for iCSee / Xiongmai / Sofia Cameras**:
+  - **Generic RTSP cameras fully supported**: Works out of the box with any RTSP feed.
+  - **Real-Time PTZ Control**: On-screen translucent D-Pad with speed adjustment using the native Sofia protocol (port 34567).
+  - **AI Alarm Management**: Configure motion detection and humanoid shape detection directly from the app.
+  - **Smart Identification**: Auto-tags compatible devices during subnet discovery.
+- **🎥 Flexible Video Grid**:
+  - Responsive multi-camera layouts (1x1, 2x2, 3x3, or Auto).
+  - Double-click any camera tile to expand it across the full grid.
+- **🚀 Low Latency & High Performance**:
+  - OpenCV RTSP decoding with FFmpeg acceleration (`tcp`, `nobuffer`, `low_delay`).
+  - Thread-isolated decoding ensures the UI remains silky smooth.
+- **📸 High-Quality Snapshots**:
+  - One-click image captures saved directly to the OS user pictures directory.
+- **🌙 CCTV Dark Mode Interface**:
+  - Professional security monitoring aesthetic with live connection badges (*Online*, *Reconnecting*, *Offline*).
+
+---
+
+## 🚀 Installation & Getting Started
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/adenauersampaio/myipcams.git
+cd myipcams
 ```
-myipcams/
-├── myipcams/
-│   ├── core/
-│   │   ├── camera.py          # Modelo de dados da câmera (MAC, UUID, credenciais, protocolo)
-│   │   ├── storage.py         # Persistência atômica multiplataforma (JSON)
-│   │   └── tracker.py         # Monitor de IP em background (ARP + WS-Discovery)
-│   ├── network/
-│   │   ├── arp.py             # Leitor de ARP multiplataforma (Linux, Windows, macOS)
-│   │   ├── discovery.py       # Descoberta ONVIF UDP 3702 e varredura de sub-rede
-│   │   ├── xm_client.py       # Cliente nativo Sofia/NETip (porta 34567 - PTZ e Alarmes)
-│   │   └── onvif_ptz.py       # Controle PTZ via ONVIF padrão
-│   ├── player/
-│   │   └── stream_worker.py   # Decodificador RTSP de baixa latência em thread Qt dedicada
-│   ├── ui/
-│   │   ├── main_window.py     # Janela principal e barra de ferramentas
-│   │   ├── camera_grid.py     # Mosaico responsivo (1x1, 2x2, 3x3, auto)
-│   │   ├── camera_widget.py   # Widget individual de visualização com overlay PTZ
-│   │   ├── ptz_overlay.py     # D-Pad direcional translúcido para rotação
-│   │   ├── xm_alarm_dialog.py # Configuração de IA e detecção de movimento
-│   │   ├── discovery_dialog.py# Assistente visual de busca na rede local
-│   │   ├── camera_edit_dialog.py # Cadastro e edição de câmeras
-│   │   ├── about_dialog.py    # Janela Sobre com mídias
-│   │   └── assets.py          # Gerenciamento de resolução de ícones e assets
-│   └── main.py                # Ponto de entrada da aplicação
-├── assets/                    # Ícones em múltiplas resoluções, animação e mídias
-├── tests/                     # Suíte de testes unitários automatizados
-├── run.sh                     # Script de inicialização rápida (Linux e macOS)
-├── run.bat                    # Script de inicialização rápida (Windows)
-├── install_desktop_shortcut.sh# Instalador de atalho desktop para Linux
-├── pyproject.toml             # Metadados e dependências do pacote
-├── LICENSE                    # Licença MIT
-└── README.md                  # Documentação completa do projeto
+
+### 🐧 On Linux (Ubuntu, Debian, Fedora, Arch, Zorin OS, etc.)
+
+```bash
+# Install dependencies (Ubuntu/Debian):
+sudo apt update && sudo apt install python3 python3-venv python3-pip ffmpeg
+
+# Quick launch:
+./run.sh
+
+# Application menu launcher (optional):
+./install_desktop_shortcut.sh
+```
+
+### 🪟 On Windows (Windows 10 / 11)
+
+Double-click `run.bat` or run in Command Prompt / PowerShell:
+```cmd
+run.bat
+```
+*(Automatically provisions `.venv`, installs dependencies, and launches the app).*
+
+### 🍎 On macOS (Intel & Apple Silicon)
+
+```bash
+# Install dependencies via Homebrew:
+brew install python ffmpeg
+
+# Run:
+./run.sh
 ```
 
 ---
 
-## 🧪 Executando os Testes Automatizados
+## 🔧 Typical RTSP Formats by Vendor
 
-A aplicação conta com suíte de testes unitários com cobertura para os modelos, armazenamento, descoberta de rede, tabela ARP e interface gráfica.
+| Manufacturer | Default RTSP Path | Full Stream URL Example |
+|---|---|---|
+| **Yoosee / Generic** | `/live/ch0` | `rtsp://admin:123456@192.168.1.100:554/live/ch0` |
+| **Intelbras / Dahua** | `/cam/realmonitor?channel=1&subtype=0` | `rtsp://admin:password@192.168.1.100:554/cam/realmonitor?channel=1&subtype=0` |
+| **Hikvision** | `/Streaming/Channels/101` | `rtsp://admin:password@192.168.1.100:554/Streaming/Channels/101` |
+| **TP-Link Tapo** | `/stream1` | `rtsp://user:password@192.168.1.100:554/stream1` |
+| **Reolink** | `/h264Preview_01_main` | `rtsp://admin:password@192.168.1.100:554/h264Preview_01_main` |
+| **iCSee / Xiongmai** | `/live/ch0` or via ONVIF | `rtsp://admin:password@192.168.1.100:554/live/ch0` |
+| **ONVIF Standard** | `/onvif1` | `rtsp://admin:password@192.168.1.100:554/onvif1` |
 
-Para executar todos os testes:
+---
+
+## 📁 Repository Structure
+
+```
+myipcams/
+├── myipcams/
+│   ├── core/                  # Data models, persistence & background IP tracker
+│   ├── network/               # Multiplatform ARP, ONVIF discovery, Sofia client
+│   ├── player/                # Low-latency multi-threaded RTSP worker
+│   ├── ui/                    # PyQt6 windows, dialogs, responsive camera grid, PTZ overlay
+│   └── main.py                # Main application entry point
+├── assets/                    # Icons (multiple DPIs), animated media
+├── tests/                     # Automated unit test suite
+├── run.sh                     # Quick launch script (Linux & macOS)
+├── run.bat                    # Quick launch script (Windows)
+├── install_desktop_shortcut.sh# Desktop entry installer (Linux)
+├── pyproject.toml             # Package metadata & dependencies
+├── LICENSE                    # MIT License
+└── README.md                  # Bilingual documentation
+```
+
+---
+
+## 🧪 Running Unit Tests
+
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m unittest discover -s tests -v
 ```
 
 ---
 
-## 📄 Licença
+## 📄 License
 
-Distribuído sob a licença **MIT**. Consulte o arquivo [LICENSE](LICENSE) para obter mais informações.
+Distributed under the **MIT License**. See [LICENSE](LICENSE) for more details.
 
-Desenvolvido por **Adenauer Sampaio** (2026).
+Created by **Adenauer Sampaio** (2026).
