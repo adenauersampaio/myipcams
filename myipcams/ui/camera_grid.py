@@ -3,6 +3,7 @@ import math
 from typing import Dict, List, Optional
 from PyQt6.QtCore import Qt, pyqtSignal, QByteArray, QSize
 from PyQt6.QtGui import QMovie
+from PyQt6 import sip
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -116,7 +117,9 @@ class CameraGrid(QWidget):
         self.widgets: Dict[str, CameraWidget] = {}
         self.maximized_camera_id: Optional[str] = None
         self._main_splitter: Optional[QSplitter] = None
+        self._row_splitters: List[QSplitter] = []
         self._saved_splitter_state: Optional[QByteArray] = None
+        self._saved_row_states: Dict[QSplitter, QByteArray] = {}
 
         self.setAcceptDrops(True)
 
@@ -235,49 +238,49 @@ class CameraGrid(QWidget):
         self.rebuild_layout()
 
     def rebuild_layout(self):
-        """Reconstrói a estrutura de QSplitters permitindo arrasto livre em todas as bordas."""
-        # Salva o estado dos splitters se já existiam e não estava maximizado
-        if self._main_splitter and not self.maximized_camera_id:
+        """Reconstrói a grade de QSplitters ao alterar layout, adicionar/remover ou reordenar câmeras."""
+        self.maximized_camera_id = None
+
+        # 1. Salva o estado dos splitters anteriores se existiam
+        if self._main_splitter and not sip.isdeleted(self._main_splitter):
             try:
                 self._saved_splitter_state = self._main_splitter.saveState()
             except Exception:
                 pass
 
-        # Limpa o layout container sem destruir os widgets das câmeras
-        while self.container_layout.count() > 0:
-            item = self.container_layout.takeAt(0)
-            w = item.widget()
-            if w and w not in self.widgets.values() and w != self.empty_state:
-                w.setParent(None)
-                w.deleteLater()
+        # 2. Desacopla e reparenta com segurança todos os widgets existentes de câmeras para self
+        # evitando que sejam destruídos quando os splitters antigos forem descartados
+        for w in self.widgets.values():
+            if not sip.isdeleted(w):
+                w.setParent(self)
+                w.hide()
+                if hasattr(w, "set_maximized_state"):
+                    w.set_maximized_state(False)
 
-        # Caso 1: Nenhuma câmera
+        # 3. Descarta splitters anteriores do container_layout
+        if self._main_splitter:
+            if not sip.isdeleted(self._main_splitter):
+                self.container_layout.removeWidget(self._main_splitter)
+                self._main_splitter.setParent(None)
+                self._main_splitter.deleteLater()
+            self._main_splitter = None
+            self._row_splitters.clear()
+            self._saved_row_states.clear()
+
+        # 4. Caso vazio: Nenhuma câmera
         if not self.widgets:
             self.empty_state.show()
             self.empty_state.start_animation()
-            self.container_layout.addWidget(self.empty_state)
+            if self.container_layout.indexOf(self.empty_state) == -1:
+                self.container_layout.addWidget(self.empty_state)
             return
         else:
             self.empty_state.stop_animation()
             self.empty_state.hide()
+            if self.container_layout.indexOf(self.empty_state) != -1:
+                self.container_layout.removeWidget(self.empty_state)
 
-        # Caso 2: Uma câmera maximizada
-        if self.maximized_camera_id and self.maximized_camera_id in self.widgets:
-            for cam_id, widget in self.widgets.items():
-                if cam_id == self.maximized_camera_id:
-                    widget.set_maximized_state(True)
-                    widget.show()
-                    self.container_layout.addWidget(widget)
-                else:
-                    widget.set_maximized_state(False)
-                    widget.hide()
-            return
-
-        # Caso 3: Grade com bordas redimensionáveis (QSplitters verticais e horizontais)
-        for widget in self.widgets.values():
-            widget.set_maximized_state(False)
-            widget.show()
-
+        # 5. Constrói nova estrutura de splitters
         cam_list = [self.widgets[c.id] for c in self.cameras if c.id in self.widgets]
         if not cam_list:
             cam_list = list(self.widgets.values())
@@ -291,7 +294,6 @@ class CameraGrid(QWidget):
         elif self.layout_mode == "3x3":
             cols = 3
         else:
-            # Modo auto
             if cam_count <= 1:
                 cols = 1
             elif cam_count == 2:
@@ -305,30 +307,29 @@ class CameraGrid(QWidget):
             else:
                 cols = 4
 
-        # Cria splitter vertical principal
         self._main_splitter = QSplitter(Qt.Orientation.Vertical)
         self._main_splitter.setHandleWidth(6)
         self._main_splitter.setChildrenCollapsible(False)
+        self._row_splitters = []
+        self._saved_row_states = {}
 
-        # Agrupa os widgets em linhas
         num_rows = math.ceil(cam_count / cols)
         for r in range(num_rows):
             row_widgets = cam_list[r * cols : (r + 1) * cols]
             row_splitter = QSplitter(Qt.Orientation.Horizontal)
             row_splitter.setHandleWidth(6)
             row_splitter.setChildrenCollapsible(False)
+            self._row_splitters.append(row_splitter)
 
             for w in row_widgets:
                 row_splitter.addWidget(w)
+                w.show()
 
-            # Distribuição inicial uniforme na horizontal
             row_splitter.setSizes([1000] * len(row_widgets))
             self._main_splitter.addWidget(row_splitter)
 
-        # Distribuição inicial uniforme na vertical
         self._main_splitter.setSizes([1000] * num_rows)
 
-        # Tenta restaurar estado prévio de proporções se compatível
         if self._saved_splitter_state:
             try:
                 self._main_splitter.restoreState(self._saved_splitter_state)
@@ -338,12 +339,74 @@ class CameraGrid(QWidget):
         self.container_layout.addWidget(self._main_splitter)
 
     def _toggle_maximize(self, camera_id: str):
-        """Alterna maximização de um card individual."""
+        """Alterna maximização de um card individual sem destruir ou recriar splitters."""
+        if camera_id not in self.widgets:
+            return
+
         if self.maximized_camera_id == camera_id:
+            # Restaurar para grade normal
             self.maximized_camera_id = None
+            if self._main_splitter and not sip.isdeleted(self._main_splitter):
+                for row_splitter in self._row_splitters:
+                    if not sip.isdeleted(row_splitter):
+                        row_splitter.show()
+                        for i in range(row_splitter.count()):
+                            w = row_splitter.widget(i)
+                            if w and not sip.isdeleted(w):
+                                if hasattr(w, "set_maximized_state"):
+                                    w.set_maximized_state(False)
+                                w.show()
+
+                if self._saved_splitter_state:
+                    try:
+                        self._main_splitter.restoreState(self._saved_splitter_state)
+                    except Exception:
+                        pass
+                for row_splitter, state in self._saved_row_states.items():
+                    if not sip.isdeleted(row_splitter):
+                        try:
+                            row_splitter.restoreState(state)
+                        except Exception:
+                            pass
         else:
+            # Maximizar câmera selecionada
             self.maximized_camera_id = camera_id
-        self.rebuild_layout()
+            target_widget = self.widgets[camera_id]
+
+            if self._main_splitter and not sip.isdeleted(self._main_splitter):
+                try:
+                    self._saved_splitter_state = self._main_splitter.saveState()
+                except Exception:
+                    pass
+
+                self._saved_row_states.clear()
+                for row_splitter in self._row_splitters:
+                    if not sip.isdeleted(row_splitter):
+                        try:
+                            self._saved_row_states[row_splitter] = row_splitter.saveState()
+                        except Exception:
+                            pass
+
+                        row_widgets = [row_splitter.widget(i) for i in range(row_splitter.count())]
+                        if target_widget in row_widgets:
+                            row_splitter.show()
+                            for w in row_widgets:
+                                if w and not sip.isdeleted(w):
+                                    if w == target_widget:
+                                        if hasattr(w, "set_maximized_state"):
+                                            w.set_maximized_state(True)
+                                        w.show()
+                                    else:
+                                        if hasattr(w, "set_maximized_state"):
+                                            w.set_maximized_state(False)
+                                        w.hide()
+                        else:
+                            row_splitter.hide()
+                            for w in row_widgets:
+                                if w and not sip.isdeleted(w):
+                                    if hasattr(w, "set_maximized_state"):
+                                        w.set_maximized_state(False)
+                                    w.hide()
 
     def stop_all(self):
         """Para todos os streams ao fechar a janela."""

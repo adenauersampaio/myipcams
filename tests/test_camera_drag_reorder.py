@@ -5,7 +5,7 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"
 import tempfile
 from pathlib import Path
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt, QMimeData, QPointF
+from PyQt6.QtCore import Qt, QMimeData, QPoint, QPointF
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
 
 from myipcams.core.camera import Camera
@@ -51,7 +51,7 @@ class TestCameraDragReorder(unittest.TestCase):
 
         # Testa dragEnterEvent de outra câmera
         enter_event = QDragEnterEvent(
-            QPointF(10.0, 10.0),
+            QPoint(10, 10),
             Qt.DropAction.MoveAction,
             mime_other,
             Qt.MouseButton.LeftButton,

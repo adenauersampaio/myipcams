@@ -159,15 +159,27 @@ class MainWindow(QMainWindow):
             self.storage.save_cameras(self.cameras)
             self.grid.set_cameras(self.cameras)
 
+    def _show_info_modal(self, title: str, message: str):
+        """Abre caixa de diálogo informativa garantindo exibição em primeiro plano."""
+        return QMessageBox.information(self, title, message)
+
+    def _show_question_modal(
+        self,
+        title: str,
+        message: str,
+        buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        default_btn=QMessageBox.StandardButton.No,
+    ):
+        """Abre caixa de confirmação garantindo exibição em primeiro plano."""
+        return QMessageBox.question(self, title, message, buttons, default_btn)
+
     def _remove_camera_by_id(self, camera_id: str):
         cam = next((c for c in self.cameras if c.id == camera_id), None)
         if not cam:
             return
-        reply = QMessageBox.question(
-            self,
+        reply = self._show_question_modal(
             "Remover Câmera",
             f"Deseja realmente remover a câmera '{cam.name}'?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
             self.cameras = [c for c in self.cameras if c.id != camera_id]
@@ -177,8 +189,11 @@ class MainWindow(QMainWindow):
 
     def _open_discovery(self):
         dialog = DiscoveryDialog(parent=self)
-        dialog.cameras_added.connect(self._on_discovered_cameras_added)
-        dialog.exec()
+        if dialog.exec():
+            # A janela de busca é fechada antes de exibir a confirmação em primeiro plano
+            new_cameras = dialog.get_selected_cameras()
+            if new_cameras:
+                self._on_discovered_cameras_added(new_cameras)
 
     def _on_discovered_cameras_added(self, new_cameras: List[Camera]):
         added_count = 0
@@ -200,14 +215,12 @@ class MainWindow(QMainWindow):
             self.storage.save_cameras(self.cameras)
             self.grid.set_cameras(self.cameras)
             self._update_status_counts()
-            QMessageBox.information(
-                self,
+            self._show_info_modal(
                 "Câmeras Adicionadas",
                 f"{added_count} nova(s) câmera(s) adicionada(s) com sucesso!"
             )
         else:
-            QMessageBox.information(
-                self,
+            self._show_info_modal(
                 "Aviso",
                 "As câmeras selecionadas já estavam cadastradas."
             )

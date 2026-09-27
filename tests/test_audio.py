@@ -55,7 +55,7 @@ class TestCameraAudio(unittest.TestCase):
         player.stop()
 
     def test_camera_widget_has_audio_ui(self):
-        cam = Camera(name="Câmera Som", current_ip="192.168.1.150", enabled=True)
+        cam = Camera(name="Câmera Som", current_ip="192.168.1.150", enabled=False)
         widget = CameraWidget(cam)
 
         self.assertIsNotNone(widget.btn_audio)

@@ -301,5 +301,10 @@ class DiscoveryDialog(QDialog):
             QMessageBox.warning(self, "Aviso", "Nenhuma câmera marcada para adicionar.")
             return
 
-        self.cameras_added.emit(to_add)
+        self._selected_cameras = to_add
         self.accept()
+        self.cameras_added.emit(to_add)
+
+    def get_selected_cameras(self) -> List[Camera]:
+        """Retorna a lista de câmeras selecionadas pelo usuário antes do fechamento."""
+        return getattr(self, "_selected_cameras", [])

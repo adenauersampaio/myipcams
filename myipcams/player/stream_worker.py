@@ -61,9 +61,19 @@ class StreamWorker(QObject):
             self.status_changed.emit("reconnecting")
             self._url_changed = False
             
-            # Abre o fluxo RTSP com proteção rigorosa
+            # Abre o fluxo RTSP com proteção rigorosa e timeout ágil
             try:
-                self._cap = cv2.VideoCapture(self._rtsp_url, cv2.CAP_FFMPEG)
+                params = []
+                if hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC"):
+                    params.extend([cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 2500])
+                if hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC"):
+                    params.extend([cv2.CAP_PROP_READ_TIMEOUT_MSEC, 2500])
+
+                if params:
+                    self._cap = cv2.VideoCapture(self._rtsp_url, cv2.CAP_FFMPEG, params)
+                else:
+                    self._cap = cv2.VideoCapture(self._rtsp_url, cv2.CAP_FFMPEG)
+
                 if self._cap and self._cap.isOpened():
                     self._cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 else:

@@ -460,24 +460,51 @@ class CameraWidget(QFrame):
 
         self.thread.start()
 
+    def _show_info(self, title: str, message: str):
+        """Abre mensagem informativa garantindo janela pai correta."""
+        parent_win = self.window() if self.window() else self
+        return QMessageBox.information(parent_win, title, message)
+
+    def _show_warning(self, title: str, message: str):
+        """Abre aviso garantindo janela pai correta."""
+        parent_win = self.window() if self.window() else self
+        return QMessageBox.warning(parent_win, title, message)
+
+    def _show_question(
+        self,
+        title: str,
+        message: str,
+        buttons=QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        default_btn=QMessageBox.StandardButton.No,
+    ):
+        """Abre confirmação garantindo janela pai correta."""
+        parent_win = self.window() if self.window() else self
+        return QMessageBox.question(parent_win, title, message, buttons, default_btn)
+
+    _retiring_threads: set = set()
+
     def stop_stream(self):
         """Finaliza a thread de captura com segurança."""
         if hasattr(self, "audio_player"):
             self.audio_player.stop()
             self.audio_player.set_muted(True)
 
-        if self.worker:
-            self.worker.stop()
-            self.worker = None
-        if self.thread:
-            self.thread.quit()
-            if not self.thread.wait(1500):
-                try:
-                    self.thread.terminate()
-                    self.thread.wait(500)
-                except Exception:
-                    pass
-            self.thread = None
+        worker = self.worker
+        thread = self.thread
+        self.worker = None
+        self.thread = None
+
+        if worker:
+            worker.stop()
+        if thread:
+            thread.quit()
+            if not thread.wait(200):
+                CameraWidget._retiring_threads.add(thread)
+                thread.finished.connect(
+                    lambda t_ref=thread: (CameraWidget._retiring_threads.discard(t_ref), t_ref.deleteLater())
+                )
+            else:
+                thread.deleteLater()
 
     def _toggle_audio(self):
         """Alterna entre mudo e reprodução de som da câmera."""
@@ -551,23 +578,19 @@ class CameraWidget(QFrame):
 
         if self.worker:
             self.worker.request_snapshot(filepath)
-            QMessageBox.information(
-                self,
+            self._show_info(
                 "Foto Capturada",
                 f"Captura salva em:\n{filepath}"
             )
         else:
-            QMessageBox.warning(self, "Aviso", "Câmera não está transmitindo no momento.")
+            self._show_warning("Aviso", "Câmera não está transmitindo no momento.")
 
     def _confirm_and_reboot(self):
         """Exibe confirmação e envia comando de reinicialização para a câmera."""
-        reply = QMessageBox.question(
-            self,
+        reply = self._show_question(
             "Reiniciar Câmera",
             f"Deseja realmente enviar o comando de reinicialização para a câmera '{self.camera.name}' ({self.camera.current_ip})?\n\n"
             "⚠️ O sinal de vídeo será interrompido e a câmera levará de 1 a 2 minutos para reiniciar.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
@@ -618,8 +641,7 @@ class CameraWidget(QFrame):
         self.btn_reboot.setToolTip("Reiniciar Câmera (Reboot)")
 
         if success:
-            QMessageBox.information(
-                self,
+            self._show_info(
                 "Comando de Reinicialização Enviado",
                 f"O comando de reinicialização foi enviado com sucesso para a câmera '{self.camera.name}'.\n\n"
                 "A câmera foi instruída a reiniciar e o aplicativo tentará restabelecer a conexão automaticamente.",
@@ -629,8 +651,7 @@ class CameraWidget(QFrame):
             self.video_label.clear_frame("Câmera Reiniciando...")
             QTimer.singleShot(15000, self._restart_stream)
         else:
-            QMessageBox.warning(
-                self,
+            self._show_warning(
                 "Falha na Reinicialização",
                 f"Não foi possível reiniciar a câmera '{self.camera.name}'.\n\n"
                 "Verifique se a câmera suporta comandos de reinicialização remota (via protocolo Xiongmai/iCSee ou ONVIF) "
@@ -842,16 +863,14 @@ class CameraWidget(QFrame):
             self.camera.camera_type = "icsee"
             self.update_camera_info()
             self.camera_updated.emit(self.camera.id)
-            QMessageBox.information(
-                self,
+            self._show_info(
                 "Recursos iCSee Detectados",
                 f"A câmera '{self.camera.name}' ({ip}) respondeu com sucesso na porta {port}!\n\n"
                 "O modo 'iCSee / Xiongmai' foi ativado com sucesso.\n"
                 "O botão de controle PTZ (🎮) agora está disponível na barra inferior e no menu da câmera."
             )
         else:
-            QMessageBox.information(
-                self,
+            self._show_info(
                 "Não Detectado",
                 f"A câmera '{self.camera.name}' ({ip}) não respondeu na porta {port} do protocolo iCSee.\n\n"
                 "Ela continuará operando normalmente no modo Genérica (RTSP/ONVIF)."
