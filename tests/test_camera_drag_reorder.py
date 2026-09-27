@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt, QMimeData, QPoint, QPointF
-from PyQt6.QtGui import QDragEnterEvent, QDropEvent
+from PyQt6.QtGui import QDragEnterEvent, QDropEvent, QFont
 
 from myipcams.core.camera import Camera
 from myipcams.core.storage import CameraStorage
@@ -14,6 +14,7 @@ from myipcams.ui.camera_widget import CameraWidget
 from myipcams.ui.camera_grid import CameraGrid
 
 app = QApplication.instance() or QApplication([])
+app.setFont(QFont("DejaVu Sans", 10))
 
 
 class TestCameraDragReorder(unittest.TestCase):

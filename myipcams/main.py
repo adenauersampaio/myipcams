@@ -2,6 +2,7 @@ import sys
 import argparse
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
 from myipcams.ui.main_window import MainWindow
 from myipcams.ui.assets import get_app_icon
 
@@ -30,6 +31,11 @@ def main():
     app.setDesktopFileName("myipcams")
     app.setWindowIcon(get_app_icon())
 
+    # Define família de fontes padrão estável para evitar falhas do fontconfig no Linux
+    font = QFont()
+    font.setFamilies(["DejaVu Sans", "Segoe UI", "SF Pro Text", "Ubuntu", "Noto Sans", "Arial", "sans-serif"])
+    font.setPointSize(10)
+    app.setFont(font)
 
     window = MainWindow(config_path=args.config)
     window.show()

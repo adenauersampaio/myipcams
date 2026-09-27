@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QTimer, QPoint, QMimeData, QEvent
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QTimer, QPoint, QPointF, QMimeData, QEvent
 from PyQt6.QtGui import QImage, QPixmap, QFont, QAction, QPainter, QDrag, QPen, QColor
 from PyQt6.QtWidgets import (
     QApplication,
@@ -89,6 +89,50 @@ class CameraRenameDialog(QDialog):
 
     def get_name(self) -> str:
         return self.name_input.text().strip()
+
+
+class DragHandle(QLabel):
+    """
+    Ícone de pega (grip) de 6 pontos renderizado diretamente com QPainter.
+    Evita depender de fontes com caracteres Unicode raros (como caracteres Braille)
+    que causam falhas de segmentação em libfontconfig no Linux.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__("⠿", parent)
+        self.setObjectName("dragHandle")
+        self.setFixedSize(16, 20)
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.setToolTip("Arraste para reposicionar a câmera na grade")
+        self._is_hovered = False
+
+    def enterEvent(self, event):
+        super().enterEvent(event)
+        self._is_hovered = True
+        self.update()
+
+    def leaveEvent(self, event):
+        super().leaveEvent(event)
+        self._is_hovered = False
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if self._is_hovered:
+            painter.setBrush(QColor("#1E293B"))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(self.rect(), 4, 4)
+            color = QColor("#60A5FA")
+        else:
+            color = QColor("#64748B")
+
+        painter.setBrush(color)
+        painter.setPen(Qt.PenStyle.NoPen)
+        for x in (5.0, 11.0):
+            for y in (4.0, 10.0, 16.0):
+                painter.drawEllipse(QPointF(x, y), 1.5, 1.5)
+        painter.end()
 
 
 class VideoLabel(QLabel):
@@ -228,23 +272,7 @@ class CameraWidget(QFrame):
         header.setContentsMargins(6, 4, 6, 2)
         header.setSpacing(4)
 
-        self.drag_handle = QLabel("⠿")
-        self.drag_handle.setObjectName("dragHandle")
-        self.drag_handle.setCursor(Qt.CursorShape.OpenHandCursor)
-        self.drag_handle.setToolTip("Arraste para reposicionar a câmera na grade")
-        self.drag_handle.setStyleSheet("""
-            QLabel#dragHandle {
-                color: #64748B;
-                font-size: 16px;
-                font-weight: bold;
-                padding: 0 4px;
-            }
-            QLabel#dragHandle:hover {
-                color: #60A5FA;
-                background-color: #1E293B;
-                border-radius: 4px;
-            }
-        """)
+        self.drag_handle = DragHandle(self)
 
         self.name_label = ClickableNameLabel(self.camera.name)
         self.name_label.setFont(QFont("sans-serif", 10, QFont.Weight.Bold))

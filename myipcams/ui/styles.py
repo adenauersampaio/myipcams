@@ -7,6 +7,7 @@ QWidget {
     background-color: #121418;
     color: #E2E8F0;
     font-size: 13px;
+    font-family: "DejaVu Sans", "Segoe UI", "Ubuntu", -apple-system, sans-serif;
 }
 
 /* ToolBar */

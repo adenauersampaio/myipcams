@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
+from PyQt6.QtGui import QFont
 from PyQt6 import sip
 
 from myipcams.core.camera import Camera
@@ -18,6 +19,7 @@ from myipcams.ui.discovery_dialog import DiscoveryDialog
 from myipcams.ui.main_window import MainWindow
 
 app = QApplication.instance() or QApplication([])
+app.setFont(QFont("DejaVu Sans", 10))
 
 
 class TestMaximizeRestore(unittest.TestCase):
