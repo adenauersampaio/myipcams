@@ -8,6 +8,7 @@ import uuid
 class Camera:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     name: str = "Nova Câmera"
+    serial_number: Optional[str] = None    # ex: "c907717f3a5f1ef2" (Cloud ID XMeye / Serial físico imutável)
     mac_address: Optional[str] = None      # ex: "a4:12:42:3b:01:2c" (identificador físico imutável)
     onvif_uuid: Optional[str] = None       # ex: "urn:uuid:48b0a... (identificador ONVIF)
     current_ip: str = "192.168.1.100"
@@ -51,6 +52,7 @@ class Camera:
         return {
             "id": self.id,
             "name": self.name,
+            "serial_number": self.serial_number.strip().lower() if self.serial_number else None,
             "mac_address": self.mac_address.lower() if self.mac_address else None,
             "onvif_uuid": self.onvif_uuid,
             "current_ip": self.current_ip,
@@ -71,6 +73,7 @@ class Camera:
         return cls(
             id=data.get("id", str(uuid.uuid4())),
             name=data.get("name", "Câmera"),
+            serial_number=data.get("serial_number", "").strip().lower() if data.get("serial_number") else None,
             mac_address=data.get("mac_address", "").lower() if data.get("mac_address") else None,
             onvif_uuid=data.get("onvif_uuid"),
             current_ip=data.get("current_ip", "127.0.0.1"),

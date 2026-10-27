@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 from ..core.camera import Camera
 from ..network.arp import ARPTable, normalize_mac
+from ..network.discovery import NetworkDiscovery
 from ..network.xm_client import probe_device
 from .assets import get_app_icon
 from .password_edit import PasswordLineEdit
@@ -78,12 +79,22 @@ class CameraEditDialog(QDialog):
         # Campo MAC com botão de busca automática
         mac_layout = QHBoxLayout()
         self.mac_edit = QLineEdit()
-        self.mac_edit.setPlaceholderText("Ex: a4:12:42:3b:01:2c (necessário p/ rastreamento dinâmico)")
+        self.mac_edit.setPlaceholderText("Ex: a4:12:42:3b:01:2c (identificador físico)")
         self.btn_auto_mac = QPushButton("Detectar MAC")
         self.btn_auto_mac.setObjectName("secondaryBtn")
         self.btn_auto_mac.clicked.connect(self._detect_mac)
         mac_layout.addWidget(self.mac_edit)
         mac_layout.addWidget(self.btn_auto_mac)
+
+        # Campo Número de Série com botão de busca automática
+        serial_layout = QHBoxLayout()
+        self.serial_edit = QLineEdit()
+        self.serial_edit.setPlaceholderText("Ex: c907717f3a5f1ef2 (Cloud ID XMeye / Serial imutável)")
+        self.btn_auto_serial = QPushButton("Detectar Serial")
+        self.btn_auto_serial.setObjectName("secondaryBtn")
+        self.btn_auto_serial.clicked.connect(self._detect_serial)
+        serial_layout.addWidget(self.serial_edit)
+        serial_layout.addWidget(self.btn_auto_serial)
 
         self.port_spin = QSpinBox()
         self.port_spin.setRange(1, 65535)
@@ -113,6 +124,7 @@ class CameraEditDialog(QDialog):
         form.addRow("Nome da Câmera:", self.name_edit)
         form.addRow("Endereço IP:", self.ip_edit)
         form.addRow("Endereço MAC:", mac_layout)
+        form.addRow("Nº de Série / Cloud ID:", serial_layout)
         form.addRow("Porta RTSP:", self.port_spin)
         form.addRow("Caminho do Stream:", self.path_combo)
         form.addRow("Usuário RTSP:", self.user_edit)
@@ -190,6 +202,7 @@ class CameraEditDialog(QDialog):
         self.name_edit.setText(self.camera.name)
         self.ip_edit.setText(self.camera.current_ip)
         self.mac_edit.setText(self.camera.mac_address or "")
+        self.serial_edit.setText(self.camera.serial_number or "")
         self.port_spin.setValue(self.camera.rtsp_port)
         self.path_combo.setCurrentText(self.camera.rtsp_path)
         self.user_edit.setText(self.camera.username)
@@ -263,6 +276,36 @@ class CameraEditDialog(QDialog):
                 "Não Encontrado",
                 "Endereço MAC ainda não consta na tabela ARP do sistema.\n"
                 "Certifique-se de que a câmera está ligada e responda a pings na mesma rede local."
+            )
+
+    def _detect_serial(self):
+        ip = self.ip_edit.text().strip()
+        if not ip:
+            QMessageBox.warning(self, "Aviso", "Preencha primeiro o endereço IP.")
+            return
+
+        serial, model, _ = NetworkDiscovery.fetch_device_info(
+            ip,
+            candidate_ports=[self.xm_port_spin.value(), 8899, 80],
+            timeout=1.5
+        )
+        if serial:
+            self.serial_edit.setText(serial)
+            if model and not self.camera.vendor_model:
+                self.camera.vendor_model = model
+            QMessageBox.information(
+                self,
+                "Sucesso",
+                f"Número de Série detectado com sucesso: {serial}\n"
+                f"Modelo: {model or 'N/A'}\n\n"
+                "Este número de série é imutável (Cloud ID) e será usado para rastrear e reconectar a câmera mesmo se o MAC ou IP mudar."
+            )
+        else:
+            QMessageBox.warning(
+                self,
+                "Não Encontrado",
+                f"Não foi possível obter o número de série da câmera em {ip} via ONVIF (portas 8899/80).\n"
+                "Certifique-se de que o IP está correto e o dispositivo conectado à rede local."
             )
 
     def _test_connection(self):
@@ -379,6 +422,8 @@ class CameraEditDialog(QDialog):
         self.camera.current_ip = ip
         raw_mac = self.mac_edit.text().strip()
         self.camera.mac_address = normalize_mac(raw_mac) if raw_mac else None
+        raw_serial = self.serial_edit.text().strip()
+        self.camera.serial_number = raw_serial.lower() if raw_serial else None
         self.camera.rtsp_port = self.port_spin.value()
         self.camera.rtsp_path = self.path_combo.currentText().strip()
         self.camera.username = self.user_edit.text().strip()

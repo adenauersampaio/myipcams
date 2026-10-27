@@ -108,11 +108,12 @@ class DiscoveryDialog(QDialog):
 
         # Tabela de Resultados
         self.table = QTableWidget()
-        self.table.setColumnCount(7)
+        self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels([
             "",
             "Nome / Identificação (editável)",
             "IP Atual",
+            "Nº de Série (XMeye / Cloud ID)",
             "Portas",
             "MAC Address",
             "Método",
@@ -124,7 +125,8 @@ class DiscoveryDialog(QDialog):
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self.table)
@@ -231,22 +233,26 @@ class DiscoveryDialog(QDialog):
             ip_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
             self.table.setItem(row, 2, ip_item)
 
+            serial_item = QTableWidgetItem(cam.serial_number or "-")
+            serial_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
+            self.table.setItem(row, 3, serial_item)
+
             ports_text = ", ".join(map(str, cam.open_ports)) if cam.open_ports else str(cam.port)
             ports_item = QTableWidgetItem(ports_text)
             ports_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
-            self.table.setItem(row, 3, ports_item)
+            self.table.setItem(row, 4, ports_item)
 
             mac_item = QTableWidgetItem(cam.mac or "Desconhecido")
             mac_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
-            self.table.setItem(row, 4, mac_item)
+            self.table.setItem(row, 5, mac_item)
 
             proto_item = QTableWidgetItem(cam.protocol)
             proto_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
-            self.table.setItem(row, 5, proto_item)
+            self.table.setItem(row, 6, proto_item)
 
             uuid_item = QTableWidgetItem(cam.uuid or "-")
             uuid_item.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled)
-            self.table.setItem(row, 6, uuid_item)
+            self.table.setItem(row, 7, uuid_item)
 
     def _on_scan_finished(self):
         self.btn_scan.setEnabled(True)
@@ -282,6 +288,7 @@ class DiscoveryDialog(QDialog):
                 is_icsee = (34567 in disc.open_ports) or (disc.port == 34567) or ("xiongmai" in (disc.hardware or "").lower())
                 cam = Camera(
                     name=camera_name,
+                    serial_number=disc.serial_number,
                     current_ip=disc.ip,
                     mac_address=disc.mac,
                     onvif_uuid=disc.uuid,

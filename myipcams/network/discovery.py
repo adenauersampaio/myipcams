@@ -7,9 +7,10 @@ import struct
 import subprocess
 import sys
 import urllib.parse
+import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
-from typing import Callable, List, Optional, Set
+from typing import Callable, List, Optional, Set, Tuple
 from .arp import ARPTable, normalize_mac
 
 
@@ -70,12 +71,20 @@ CAMERA_PORTS = [
     34567,  # Xiongmai / ICSee DVR/IPC
 ]
 
+SOAP_DEVICE_INFO = """<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Body>
+    <GetDeviceInformation xmlns="http://www.onvif.org/ver10/device/wsdl"/>
+  </s:Body>
+</s:Envelope>"""
+
 
 @dataclass
 class DiscoveredCamera:
     ip: str
     port: int = 80
     rtsp_port: int = 554
+    serial_number: Optional[str] = None
     mac: Optional[str] = None
     uuid: Optional[str] = None
     name: Optional[str] = None
@@ -89,6 +98,8 @@ class DiscoveredCamera:
         parts = [f"IP: {self.ip}"]
         if self.name:
             parts.append(f"Nome: {self.name}")
+        if self.serial_number:
+            parts.append(f"Serial: {self.serial_number}")
         if self.hardware:
             parts.append(f"Modelo: {self.hardware}")
         if self.open_ports:
@@ -254,7 +265,73 @@ class NetworkDiscovery:
             if not cam.mac:
                 cam.mac = ARPTable.find_mac_by_ip(cam.ip)
 
+        cls.enrich_cameras_with_device_info(cameras)
+
         return cameras
+
+    @classmethod
+    def fetch_device_info(
+        cls,
+        ip: str,
+        candidate_ports: Optional[List[int]] = None,
+        timeout: float = 0.8,
+    ) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """
+        Consulta GetDeviceInformation via ONVIF SOAP para extrair o Número de Série (Cloud ID),
+        Modelo e Fabricante da câmera sem necessidade de autenticação.
+        Retorna: (serial_number, model, manufacturer)
+        """
+        if not candidate_ports:
+            ports = [8899, 80, 8080, 8000]
+        else:
+            ports = list(dict.fromkeys(candidate_ports + [8899, 80]))
+
+        body = SOAP_DEVICE_INFO.encode("utf-8")
+        headers = {"Content-Type": "application/soap+xml; charset=utf-8"}
+
+        for p in ports:
+            url = f"http://{ip}:{p}/onvif/device_service"
+            req = urllib.request.Request(url, data=body, headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    text = resp.read().decode("utf-8", errors="ignore")
+                    m_ser = re.search(r"<[^>]*SerialNumber[^>]*>(.*?)</[^>]*SerialNumber[^>]*>", text)
+                    m_mod = re.search(r"<[^>]*Model[^>]*>(.*?)</[^>]*Model[^>]*>", text)
+                    m_man = re.search(r"<[^>]*Manufacturer[^>]*>(.*?)</[^>]*Manufacturer[^>]*>", text)
+                    serial = m_ser.group(1).strip() if m_ser else None
+                    model = m_mod.group(1).strip() if m_mod else None
+                    man = m_man.group(1).strip() if m_man else None
+                    if serial:
+                        return serial, model, man
+            except Exception:
+                continue
+        return None, None, None
+
+    @classmethod
+    def enrich_cameras_with_device_info(cls, cameras: List[DiscoveredCamera], max_workers: int = 15):
+        """Enriquece lista de câmeras com Número de Série e Modelo em paralelo."""
+        if not cameras:
+            return
+
+        def _enrich(cam: DiscoveredCamera):
+            try:
+                candidate_ports = []
+                if cam.port:
+                    candidate_ports.append(cam.port)
+                if cam.open_ports:
+                    candidate_ports.extend(cam.open_ports)
+                serial, model, man = cls.fetch_device_info(cam.ip, candidate_ports=candidate_ports, timeout=1.0)
+                if serial and not cam.serial_number:
+                    cam.serial_number = serial
+                if model and not cam.hardware:
+                    cam.hardware = model
+                if model and cam.name and any(p in cam.name for p in ["ONVIF (", "Câmera RTSP (", "Dispositivo ("]):
+                    cam.name = f"{model} ({cam.ip})"
+            except Exception:
+                pass
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(max_workers, len(cameras))) as ex:
+            list(ex.map(_enrich, cameras))
 
     @staticmethod
     def _fix_xaddrs_ip(xaddrs_str: str, correct_ip: str) -> str:
@@ -506,6 +583,8 @@ class NetworkDiscovery:
                         existing.mac = scam.mac
                     if not existing.hardware and scam.hardware:
                         existing.hardware = scam.hardware
+                    if not existing.serial_number and scam.serial_number:
+                        existing.serial_number = scam.serial_number
                     for p in scam.open_ports:
                         if p not in existing.open_ports:
                             existing.open_ports.append(p)
@@ -515,4 +594,6 @@ class NetworkDiscovery:
         elif progress_callback:
             progress_callback(100, 100)
 
-        return list(cameras_by_ip.values())
+        result_cams = list(cameras_by_ip.values())
+        cls.enrich_cameras_with_device_info(result_cams)
+        return result_cams

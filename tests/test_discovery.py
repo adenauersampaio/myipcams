@@ -175,6 +175,46 @@ en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500
             subnets = NetworkDiscovery.get_local_subnets()
             self.assertIn("192.168.15.0/24", subnets)
 
+    def test_discovered_camera_to_display_string_with_serial(self):
+        cam = DiscoveredCamera(
+            ip="192.168.10.19",
+            name="Fundos",
+            serial_number="c907717f3a5f1ef2",
+            hardware="XM533",
+            mac="8c:5c:53:c8:9c:3b"
+        )
+        display = cam.to_display_string()
+        self.assertIn("IP: 192.168.10.19", display)
+        self.assertIn("Serial: c907717f3a5f1ef2", display)
+        self.assertIn("Nome: Fundos", display)
+        self.assertIn("MAC: 8c:5c:53:c8:9c:3b", display)
+
+    def test_fetch_device_info_parsing(self):
+        from unittest.mock import patch, MagicMock
+
+        soap_response = """<?xml version="1.0" encoding="UTF-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" xmlns:tds="http://www.onvif.org/ver10/device/wsdl">
+  <s:Body>
+    <tds:GetDeviceInformationResponse>
+      <tds:Manufacturer>H264</tds:Manufacturer>
+      <tds:Model>XM533_X3-WQ-B_8M</tds:Model>
+      <tds:FirmwareVersion>V5.04.R02</tds:FirmwareVersion>
+      <tds:SerialNumber>57a1c7de7b4ccd5e</tds:SerialNumber>
+      <tds:HardwareId>00001</tds:HardwareId>
+    </tds:GetDeviceInformationResponse>
+  </s:Body>
+</s:Envelope>""".encode("utf-8")
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = soap_response
+        mock_resp.__enter__.return_value = mock_resp
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            serial, model, man = NetworkDiscovery.fetch_device_info("192.168.10.23", candidate_ports=[8899])
+            self.assertEqual(serial, "57a1c7de7b4ccd5e")
+            self.assertEqual(model, "XM533_X3-WQ-B_8M")
+            self.assertEqual(man, "H264")
+
 
 if __name__ == "__main__":
     unittest.main()

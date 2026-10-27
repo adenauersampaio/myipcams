@@ -30,6 +30,7 @@ class TestCameraModel(unittest.TestCase):
     def test_serialization(self):
         cam = Camera(
             name="Entrada",
+            serial_number="C907717F3A5F1EF2",
             mac_address="AA:BB:CC:11:22:33",
             current_ip="192.168.0.88",
             rtsp_port=554,
@@ -38,9 +39,11 @@ class TestCameraModel(unittest.TestCase):
         )
         d = cam.to_dict()
         self.assertEqual(d["mac_address"], "aa:bb:cc:11:22:33")
+        self.assertEqual(d["serial_number"], "c907717f3a5f1ef2")
 
         restored = Camera.from_dict(d)
         self.assertEqual(restored.name, "Entrada")
+        self.assertEqual(restored.serial_number, "c907717f3a5f1ef2")
         self.assertEqual(restored.mac_address, "aa:bb:cc:11:22:33")
         self.assertEqual(restored.current_ip, "192.168.0.88")
         self.assertEqual(restored.camera_type, "generic")
